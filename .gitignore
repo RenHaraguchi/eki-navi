@@ -53,3 +53,6 @@ __pycache__/
 .venv/
 venv/
 /server/data/
+
+# 鍵を入れるファイル
+.env
