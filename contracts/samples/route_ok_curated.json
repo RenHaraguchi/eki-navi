@@ -1,0 +1,73 @@
+{
+  "origin": {
+    "lat": 35.69,
+    "lon": 139.7
+  },
+  "start": {
+    "id": "S-B1-WEST",
+    "name": "仮: 東西自由通路 西側の掲示",
+    "ordinal": -1.0,
+    "operator": "",
+    "floor": ""
+  },
+  "goal": {
+    "id": "B1:JR東日本:東改札",
+    "name": "東改札",
+    "ordinal": -1.0,
+    "operator": "JR東日本",
+    "floor": "B1"
+  },
+  "lengthMeters": 55.9,
+  "points": [
+    {
+      "x": 21.0,
+      "z": 141.0,
+      "ordinal": -1.0
+    },
+    {
+      "x": 64.0,
+      "z": 146.5,
+      "ordinal": -1.0
+    },
+    {
+      "x": 72.994,
+      "z": 141.003,
+      "ordinal": -1.0
+    }
+  ],
+  "verticalMoves": [],
+  "turns": [
+    {
+      "pointIndex": 1,
+      "direction": "right",
+      "angleDeg": 38.7,
+      "distanceFromStart": 43.4
+    }
+  ],
+  "goalLine": {
+    "ax": 68.975,
+    "az": 139.246,
+    "bx": 80.44,
+    "bz": 140.665
+  },
+  "startOffsetMeters": 1.8,
+  "signsOnRoute": [
+    {
+      "signId": "S-B1-WEST",
+      "alongMeters": 0.0,
+      "offsetMeters": 4.6
+    },
+    {
+      "signId": "S-B1-CENTER",
+      "alongMeters": 20.6,
+      "offsetMeters": 4.4
+    },
+    {
+      "signId": "S-B1-EAST",
+      "alongMeters": 45.8,
+      "offsetMeters": 4.0
+    }
+  ],
+  "source": "curated",
+  "packVersion": "b63fb203"
+}

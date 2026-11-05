@@ -1,0 +1,403 @@
+{
+  "packVersion": "b63fb203",
+  "origin": {
+    "lat": 35.69,
+    "lon": 139.7
+  },
+  "attribution": "「新宿駅周辺屋内地図データ」（国土交通省）（https://www.geospatial.jp/ckan/dataset/mlit-indoor-shinjuku-r2）を加工して作成",
+  "gates": [
+    {
+      "id": "B3:都営:JR新宿駅方面改札",
+      "name": "JR新宿駅方面改札",
+      "operator": "都営",
+      "ordinal": -3.0,
+      "floor": "B3"
+    },
+    {
+      "id": "B3:都営:小滝橋通り方面改札",
+      "name": "小滝橋通り方面改札",
+      "operator": "都営",
+      "ordinal": -3.0,
+      "floor": "B3"
+    },
+    {
+      "id": "B2:東京メトロ:東改札",
+      "name": "東改札",
+      "operator": "東京メトロ",
+      "ordinal": -2.0,
+      "floor": "B2"
+    },
+    {
+      "id": "B2:東京メトロ:西改札",
+      "name": "西改札",
+      "operator": "東京メトロ",
+      "ordinal": -2.0,
+      "floor": "B2"
+    },
+    {
+      "id": "B1:JR東日本:JR中央西口",
+      "name": "JR中央西口",
+      "operator": "JR東日本",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:JR東日本:中央東改札",
+      "name": "中央東改札",
+      "operator": "JR東日本",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:JR東日本:中央西改札",
+      "name": "中央西改札",
+      "operator": "JR東日本",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:JR東日本:東改札",
+      "name": "東改札",
+      "operator": "JR東日本",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:JR東日本:西改札",
+      "name": "西改札",
+      "operator": "JR東日本",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:ルミネ:ルミネ口",
+      "name": "ルミネ口",
+      "operator": "ルミネ",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:京王:京王新線口",
+      "name": "京王新線口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:京王:京王百貨店口",
+      "name": "京王百貨店口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:京王:京王西口",
+      "name": "京王西口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:京王:広場口",
+      "name": "広場口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:京王:新都心口",
+      "name": "新都心口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:小田急:西口地下改札",
+      "name": "西口地下改札",
+      "operator": "小田急",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "B1:都営:大江戸線改札B",
+      "name": "大江戸線改札B",
+      "operator": "都営",
+      "ordinal": -1.0,
+      "floor": "B1"
+    },
+    {
+      "id": "1F:小田急:西口地上改札",
+      "name": "西口地上改札",
+      "operator": "小田急",
+      "ordinal": 1.0,
+      "floor": "1F"
+    },
+    {
+      "id": "2F:JR東日本:ミライナタワー口改札",
+      "name": "ミライナタワー口改札",
+      "operator": "JR東日本",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:JR東日本:南改札",
+      "name": "南改札",
+      "operator": "JR東日本",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:JR東日本:新南口改札",
+      "name": "新南口改札",
+      "operator": "JR東日本",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:JR東日本:東南改札",
+      "name": "東南改札",
+      "operator": "JR東日本",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:JR東日本:甲州街道改札",
+      "name": "甲州街道改札",
+      "operator": "JR東日本",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:小田急:南札口",
+      "name": "南札口",
+      "operator": "小田急",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "2F:西武:中央改札",
+      "name": "中央改札",
+      "operator": "西武",
+      "ordinal": 2.0,
+      "floor": "2F"
+    },
+    {
+      "id": "3F:バスタ新宿:バスタ新宿",
+      "name": "バスタ新宿",
+      "operator": "バスタ新宿",
+      "ordinal": 3.0,
+      "floor": "3F"
+    }
+  ],
+  "signs": [
+    {
+      "id": "S-B1-WEST",
+      "name": "仮: 東西自由通路 西側の掲示",
+      "imageName": "sign_b1_west",
+      "x": 20.0,
+      "z": 136.5,
+      "ordinal": -1.0,
+      "azimuthDeg": 353.0,
+      "widthMeters": 0.841,
+      "heightMeters": 0.594,
+      "centerHeightMeters": 1.5,
+      "mount": "wall",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "仮"
+    },
+    {
+      "id": "S-B1-CENTER",
+      "name": "仮: 東西自由通路 中央の掲示",
+      "imageName": "sign_b1_center",
+      "x": 42.0,
+      "z": 139.2,
+      "ordinal": -1.0,
+      "azimuthDeg": 353.0,
+      "widthMeters": 0.841,
+      "heightMeters": 0.594,
+      "centerHeightMeters": 1.5,
+      "mount": "wall",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "仮"
+    },
+    {
+      "id": "S-B1-EAST",
+      "name": "仮: 東西自由通路 東側の掲示",
+      "imageName": "sign_b1_east",
+      "x": 64.0,
+      "z": 141.8,
+      "ordinal": -1.0,
+      "azimuthDeg": 353.0,
+      "widthMeters": 0.841,
+      "heightMeters": 0.594,
+      "centerHeightMeters": 1.5,
+      "mount": "wall",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "仮"
+    },
+    {
+      "id": "S-2F-SOUTH",
+      "name": "仮: 南改札前の掲示",
+      "imageName": "sign_2f_south",
+      "x": 30.5,
+      "z": -70.0,
+      "ordinal": 2.0,
+      "azimuthDeg": 348.0,
+      "widthMeters": 0.841,
+      "heightMeters": 0.594,
+      "centerHeightMeters": 1.5,
+      "mount": "wall",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "仮"
+    }
+  ],
+  "lines": [
+    {
+      "id": "keio",
+      "name": "京王線",
+      "aliases": [
+        "京王",
+        "京王線",
+        "Keio",
+        "Keio Line"
+      ],
+      "gateIds": [
+        "B1:京王:京王西口",
+        "B1:京王:京王百貨店口"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "keio-new",
+      "name": "京王新線",
+      "aliases": [
+        "京王新線",
+        "Keio New Line"
+      ],
+      "gateIds": [
+        "B1:京王:京王新線口",
+        "B1:京王:新都心口"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "odakyu",
+      "name": "小田急線",
+      "aliases": [
+        "小田急",
+        "小田急線",
+        "ロマンスカー",
+        "Odakyu",
+        "Odakyu Line"
+      ],
+      "gateIds": [
+        "B1:小田急:西口地下改札",
+        "1F:小田急:西口地上改札",
+        "2F:小田急:南札口"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "oedo",
+      "name": "都営大江戸線",
+      "aliases": [
+        "大江戸線",
+        "都営大江戸線",
+        "Oedo",
+        "Oedo Line"
+      ],
+      "gateIds": [
+        "B1:都営:大江戸線改札B",
+        "B3:都営:JR新宿駅方面改札",
+        "B3:都営:小滝橋通り方面改札"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "marunouchi",
+      "name": "東京メトロ丸ノ内線",
+      "aliases": [
+        "丸ノ内線",
+        "丸の内線",
+        "東京メトロ",
+        "Marunouchi",
+        "Marunouchi Line"
+      ],
+      "gateIds": [
+        "B2:東京メトロ:西改札",
+        "B2:東京メトロ:東改札"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "jr",
+      "name": "JR線",
+      "aliases": [
+        "JR",
+        "山手線",
+        "中央線",
+        "総武線",
+        "埼京線",
+        "湘南新宿ライン",
+        "成田エクスプレス",
+        "JR East",
+        "Yamanote",
+        "Yamanote Line",
+        "Chuo Line"
+      ],
+      "gateIds": [
+        "B1:JR東日本:東改札",
+        "B1:JR東日本:西改札",
+        "B1:JR東日本:中央東改札",
+        "B1:JR東日本:中央西改札",
+        "2F:JR東日本:南改札",
+        "2F:JR東日本:東南改札",
+        "2F:JR東日本:新南口改札",
+        "2F:JR東日本:ミライナタワー口改札",
+        "2F:JR東日本:甲州街道改札"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "seibu",
+      "name": "西武新宿線",
+      "aliases": [
+        "西武",
+        "西武新宿線",
+        "Seibu",
+        "Seibu Shinjuku Line"
+      ],
+      "gateIds": [
+        "2F:西武:中央改札"
+      ],
+      "confirmed": false
+    },
+    {
+      "id": "busta",
+      "name": "バスタ新宿",
+      "aliases": [
+        "バスタ",
+        "バスタ新宿",
+        "高速バス",
+        "空港バス",
+        "夜行バス",
+        "Busta",
+        "Busta Shinjuku",
+        "highway bus",
+        "airport bus"
+      ],
+      "gateIds": [
+        "3F:バスタ新宿:バスタ新宿"
+      ],
+      "confirmed": false
+    }
+  ]
+}

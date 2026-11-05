@@ -1,0 +1,94 @@
+{
+  "origin": {
+    "lat": 35.69,
+    "lon": 139.7
+  },
+  "start": {
+    "id": "S-B1-CENTER",
+    "name": "仮: 東西自由通路 中央の掲示",
+    "ordinal": -1.0,
+    "operator": "",
+    "floor": ""
+  },
+  "goal": {
+    "id": "B1:JR東日本:中央東改札",
+    "name": "中央東改札",
+    "ordinal": -1.0,
+    "operator": "JR東日本",
+    "floor": "B1"
+  },
+  "lengthMeters": 134.2,
+  "points": [
+    {
+      "x": 40.965,
+      "z": 147.727,
+      "ordinal": -1.0
+    },
+    {
+      "x": 100.681,
+      "z": 155.113,
+      "ordinal": -1.0
+    },
+    {
+      "x": 104.792,
+      "z": 117.799,
+      "ordinal": -1.0
+    },
+    {
+      "x": 102.121,
+      "z": 111.594,
+      "ordinal": -1.0
+    },
+    {
+      "x": 103.792,
+      "z": 93.457,
+      "ordinal": -1.0
+    },
+    {
+      "x": 94.589,
+      "z": 90.977,
+      "ordinal": -1.0
+    }
+  ],
+  "verticalMoves": [],
+  "turns": [
+    {
+      "pointIndex": 1,
+      "direction": "right",
+      "angleDeg": 90.8,
+      "distanceFromStart": 60.2
+    },
+    {
+      "pointIndex": 4,
+      "direction": "right",
+      "angleDeg": 80.2,
+      "distanceFromStart": 122.7
+    }
+  ],
+  "goalLine": {
+    "ax": 92.329,
+    "az": 93.154,
+    "bx": 92.986,
+    "bz": 87.76
+  },
+  "startOffsetMeters": 8.6,
+  "signsOnRoute": [
+    {
+      "signId": "S-B1-WEST",
+      "alongMeters": 0.0,
+      "offsetMeters": 23.8
+    },
+    {
+      "signId": "S-B1-CENTER",
+      "alongMeters": 0.0,
+      "offsetMeters": 8.6
+    },
+    {
+      "signId": "S-B1-EAST",
+      "alongMeters": 22.1,
+      "offsetMeters": 8.7
+    }
+  ],
+  "source": "network",
+  "packVersion": "b63fb203"
+}

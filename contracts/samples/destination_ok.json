@@ -1,0 +1,24 @@
+{
+  "status": "ok",
+  "candidates": [
+    {
+      "gateId": "B1:京王:京王西口",
+      "name": "京王西口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1",
+      "lengthMeters": 190.6
+    },
+    {
+      "gateId": "B1:京王:京王百貨店口",
+      "name": "京王百貨店口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1",
+      "lengthMeters": 303.5
+    }
+  ],
+  "engine": "gemini",
+  "latencyMs": 0,
+  "packVersion": "b63fb203"
+}
