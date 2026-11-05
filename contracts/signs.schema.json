@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "案内板の一覧",
+  "type": "object",
+  "required": ["signs"],
+  "additionalProperties": false,
+  "properties": {
+    "signs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "name", "imageName", "x", "z", "ordinal", "azimuthDeg",
+          "widthMeters", "heightMeters", "centerHeightMeters", "mount",
+          "correctionYawDeg", "correctionX", "correctionZ", "confidence"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$", "description": "表と裏は別の ID にする"},
+          "name": {"type": "string", "minLength": 1},
+          "imageName": {"type": "string", "minLength": 1, "description": "Unity の参照画像ライブラリに登録する名前"},
+          "x": {"type": "number", "description": "固定原点から東へのメートル"},
+          "z": {"type": "number", "description": "固定原点から北へのメートル"},
+          "ordinal": {"type": "number", "description": "階。-1 は地下1階、2 は2階"},
+          "azimuthDeg": {"type": "number", "minimum": 0, "exclusiveMaximum": 360, "description": "板面の外向きの方位。北から時計回り"},
+          "widthMeters": {"type": "number", "exclusiveMinimum": 0},
+          "heightMeters": {"type": "number", "exclusiveMinimum": 0},
+          "centerHeightMeters": {"type": "number", "exclusiveMinimum": 0, "description": "床から板の中心までの高さ（目測でよい）"},
+          "mount": {"enum": ["wall", "pillar", "hanging"]},
+          "correctionYawDeg": {"type": "number", "description": "現地で線を見て決める向きの補正"},
+          "correctionX": {"type": "number", "description": "現地で線を見て決める東方向の補正"},
+          "correctionZ": {"type": "number", "description": "現地で線を見て決める北方向の補正"},
+          "confidence": {"enum": ["実測", "図面", "推定", "未確認", "仮"]},
+          "note": {"type": "string"}
+        }
+      }
+    }
+  }
+}
