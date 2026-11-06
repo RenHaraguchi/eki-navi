@@ -32,8 +32,9 @@ namespace EkiNavi.EditorTools
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
-            var library = GetOrCreateLibrary();
+            // NewScene は使われていないアセットを解放するので、ライブラリはシーンを作ってから読む
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var library = GetOrCreateLibrary();
 
             // AR Foundation の標準メニューで、AR Session と XR Origin を置く
             EditorApplication.ExecuteMenuItem("GameObject/XR/AR Session");
