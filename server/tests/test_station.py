@@ -200,3 +200,37 @@ def test_two_way_link_can_be_walked_both_ways() -> None:
     station = Station(_small_pack(one_way=False))
 
     assert station.plan("A", from_gate_id="B").length_meters == 10.0
+
+
+def test_same_floor_route_avoids_another_floor(station: Station) -> None:
+    # 普通に探すと一度地上（0階）を通る組
+    start, goal = "2F:JR東日本:新南口改札", "2F:JR東日本:東南改札"
+    normal = station.plan(goal, from_gate_id=start)
+    flat = station.plan(goal, from_gate_id=start, same_floor=True)
+
+    assert {p.ordinal for p in normal.points} != {2.0}
+    assert {p.ordinal for p in flat.points} == {2.0}
+    assert not [m for m in flat.moves if m.kind != "stairs"]
+    assert flat.length_meters >= normal.length_meters
+
+
+def test_same_floor_route_from_the_demo_sign_stays_on_2f(station: Station) -> None:
+    plan = station.plan(
+        "2F:JR東日本:新南口改札", from_sign_id="S-2F-SOUTH", same_floor=True
+    )
+
+    assert {p.ordinal for p in plan.points} == {2.0}
+
+
+def test_same_floor_route_to_another_floor_is_no_route(station: Station) -> None:
+    with pytest.raises(StationError) as error:
+        station.plan("B1:JR東日本:東改札", from_sign_id="S-2F-SOUTH", same_floor=True)
+
+    assert error.value.code == "no_route"
+
+
+def test_map_gates_are_on_the_floor(station: Station) -> None:
+    names = {gate["name"] for gate in station.map_gates(2.0)}
+
+    assert {"南改札", "新南口改札"} <= names
+    assert "東改札" not in names

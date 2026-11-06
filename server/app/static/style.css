@@ -115,6 +115,37 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .route { fill: none; stroke: var(--accent); stroke-linejoin: round; stroke-linecap: round; }
 .other-floor { stroke-dasharray: 3 3; opacity: 0.6; }
 .goal { fill: var(--accent); }
+.start { fill: var(--panel); stroke: var(--accent); }
+label.check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-weight: 400; }
+label.check input { width: auto; flex: none; }
 .sign { fill: var(--text); }
 
 ol { margin: 12px 0 0; padding-left: 1.4em; }
+
+/* 案内板の記録のページ */
+code { font-size: 0.9em; }
+.modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.mode { flex: 1 1 160px; display: flex; gap: 8px; align-items: center; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; }
+.mode input { width: auto; flex: none; }
+.mode:has(input:checked) { border-color: var(--accent); outline: 1px solid var(--accent); }
+.map-wrap { position: relative; margin-top: 8px; }
+#survey-map { display: block; width: 100%; height: min(70vh, 560px); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; touch-action: none; cursor: crosshair; }
+.zoom { position: absolute; right: 8px; top: 8px; display: grid; gap: 6px; }
+.zoom button { width: 44px; height: 44px; padding: 0; font-size: 1.3rem; }
+.gate-dot { fill: var(--muted); }
+.gate-label { fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 0.25em; }
+.known-sign { fill: var(--muted); opacity: 0.7; }
+.recorded-sign { fill: var(--text); }
+.picked-sign { fill: var(--accent); }
+.picked-dot { fill: var(--panel); stroke: var(--accent); stroke-width: 0.3; }
+.viewer { fill: var(--accent); opacity: 0.6; }
+.sight { fill: none; stroke: var(--accent); stroke-dasharray: 1 1; }
+.fields { display: grid; gap: 12px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fields > button { justify-self: start; }
+textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: 0.8rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 400; }
+.records { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.records li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.records li button { flex: none; padding: 4px 10px; }
+footer a { color: var(--accent); }

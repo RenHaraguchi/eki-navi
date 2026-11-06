@@ -95,6 +95,7 @@ class Station:
             (c["fromSignId"], c["toGateId"]): c for c in pack["curatedLines"]
         }
         self.graph = self._build_graph(pack["links"])
+        self._floor_graphs: dict[float, nx.DiGraph] = {}
         self._sign_starts: dict[str, list[Start]] = {}
 
     @classmethod
@@ -127,6 +128,17 @@ class Station:
                 )
         return graph
 
+    def _floor_graph(self, ordinal: float) -> nx.DiGraph:
+        """その階のノードどうしを結ぶリンクだけのグラフを返す（階を変えない経路用）。"""
+        graph = self._floor_graphs.get(ordinal)
+        if graph is None:
+            graph = nx.subgraph_view(
+                self.graph,
+                filter_node=lambda node: self.nodes[node]["ordinal"] == ordinal,
+            )
+            self._floor_graphs[ordinal] = graph
+        return graph
+
     def floors(self) -> list[float]:
         """ノードがある階の一覧を返す。"""
         return sorted({node["ordinal"] for node in self.nodes})
@@ -147,6 +159,31 @@ class Station:
                 continue
             lines.append([[a["x"], a["z"]], *link["interior"], [b["x"], b["z"]]])
         return lines
+
+    def map_gates(self, ordinal: float) -> list[dict[str, Any]]:
+        """その階の改札と、地図に名前を出す位置を返す。
+
+        Args:
+            ordinal: 階番号。
+
+        Returns:
+            改札の ID、名前、事業者、位置（開口の中心の平均）の一覧。
+        """
+        found = []
+        for gate in self.gates.values():
+            openings = gate["openings"]
+            if gate["ordinal"] != ordinal or not openings:
+                continue
+            found.append(
+                {
+                    "id": gate["id"],
+                    "name": gate["name"],
+                    "operator": gate["operator"],
+                    "x": round(sum(o["x"] for o in openings) / len(openings), 1),
+                    "z": round(sum(o["z"] for o in openings) / len(openings), 1),
+                }
+            )
+        return found
 
     def _nearest_on_links(
         self, x: float, z: float, ordinal: float
@@ -248,12 +285,19 @@ class Station:
         ]
 
     def _search(
-        self, starts: list[Start], gate: dict[str, Any]
+        self, starts: list[Start], gate: dict[str, Any], same_floor: bool = False
     ) -> tuple[float, Start, dict[str, Any], list[int]]:
         best: tuple[float, Start, dict[str, Any], list[int]] | None = None
         for start in starts:
+            graph = self.graph
+            if same_floor:
+                if gate["ordinal"] != start.ordinal:
+                    continue
+                graph = self._floor_graph(start.ordinal)
+                if start.node not in graph:
+                    continue
             lengths, paths = nx.single_source_dijkstra(
-                self.graph, start.node, weight="length"
+                graph, start.node, weight="length"
             )
             for opening in gate["openings"]:
                 node = opening["node"]
@@ -263,9 +307,11 @@ class Station:
                 if best is None or total < best[0]:
                     best = (total, start, opening, paths[node])
         if best is None:
+            where = "同じ階の中で" if same_floor else ""
             raise StationError(
                 "no_route",
-                f"{starts[0].endpoint_name} から {gate['name']} への経路がありません",
+                f"{starts[0].endpoint_name} から {gate['name']} への経路が"
+                f"{where}ありません",
             )
         return best
 
@@ -306,7 +352,11 @@ class Station:
         return points, moves
 
     def plan(
-        self, to_gate_id: str, from_sign_id: str = "", from_gate_id: str = ""
+        self,
+        to_gate_id: str,
+        from_sign_id: str = "",
+        from_gate_id: str = "",
+        same_floor: bool = False,
     ) -> PlannedRoute:
         """経路を計算する。
 
@@ -314,6 +364,8 @@ class Station:
             to_gate_id: 行き先の改札。
             from_sign_id: 出発の案内板。
             from_gate_id: 出発の改札。案内板か改札のどちらか一方を渡す。
+            same_floor: True なら、出発の階から出ない経路だけを探す。
+                階段、エスカレーター、エレベーター、階が変わる坂を通らない。
 
         Returns:
             計算した経路。
@@ -331,9 +383,12 @@ class Station:
             if from_sign_id
             else self._starts_from_gate(from_gate_id)
         )
-        total, start, opening, path = self._search(starts, gate)
+        total, start, opening, path = self._search(starts, gate, same_floor)
 
         curated = self.curated.get((from_sign_id, gate["id"]))
+        if curated is not None and same_floor:
+            if any(p["ordinal"] != start.ordinal for p in curated["points"]):
+                curated = None
         if curated is not None:
             points = _curated_points(curated)
             moves: list[VerticalMove] = []

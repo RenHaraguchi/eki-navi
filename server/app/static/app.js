@@ -118,6 +118,8 @@ async function drawRoute(route, signs) {
     const className = part.sameFloor ? "route" : "route other-floor";
     map.append(svgElement("path", { d: toPath(part.points), class: className, "stroke-width": 2.2 * scale }));
   }
+  const [startX, startZ] = routePoints[0];
+  map.append(svgElement("circle", { cx: startX, cy: -startZ, r: 1.8 * scale, class: "start", "stroke-width": 0.8 * scale }));
   const [goalX, goalZ] = routePoints[routePoints.length - 1];
   map.append(svgElement("circle", { cx: goalX, cy: -goalZ, r: 2.4 * scale, class: "goal" }));
   for (const item of route.signsOnRoute) {
@@ -131,10 +133,16 @@ async function drawRoute(route, signs) {
 function renderSteps(route) {
   const steps = $("steps");
   steps.replaceChildren();
-  const items = route.turns.map((turn) => ({
-    at: turn.distanceFromStart,
-    text: `${turn.distanceFromStart} m 進んで${TURN_LABELS[turn.direction]}（${turn.angleDeg} 度）`,
-  }));
+  // distanceFromStart は出発からの合計なので、前の曲がり角からの距離に直して出す
+  let previous = 0;
+  const items = route.turns.map((turn) => {
+    const meters = Math.round(turn.distanceFromStart - previous);
+    previous = turn.distanceFromStart;
+    return {
+      at: turn.distanceFromStart,
+      text: `${meters} m 進んで${TURN_LABELS[turn.direction]}（${Math.round(turn.angleDeg)} 度）`,
+    };
+  });
   // エスカレーターは階ごとに区間が分かれるので、種類ごとに1回だけ出す
   for (const kind of new Set(route.verticalMoves.map((move) => move.kind))) {
     items.push({ at: Number.MAX_VALUE, text: `途中で${MOVE_LABELS[kind] || kind}を使います` });
@@ -150,7 +158,7 @@ function renderSteps(route) {
 async function showRoute(toGateId, signs) {
   const summary = $("route-summary");
   try {
-    const route = await api("/v1/route", { fromSignId: $("sign").value, toGateId });
+    const route = await api("/v1/route", { fromSignId: $("sign").value, toGateId, sameFloor: $("same-floor").checked });
     const crosses = route.points.some((point) => point.ordinal !== route.points[0].ordinal);
     const note = crosses ? "。破線は別の階です" : "";
     showText(summary, `${route.start.name} から ${route.goal.floor} ${route.goal.name} まで、約 ${Math.round(route.lengthMeters)} m${note}`);

@@ -174,3 +174,27 @@ def test_settings_drop_links_that_are_not_http() -> None:
 
     assert settings.video_url == ""
     assert settings.apk_url == "https://example.com/a"
+
+
+def test_route_can_stay_on_the_same_floor(client: TestClient) -> None:
+    body = {
+        "fromGateId": "2F:JR東日本:新南口改札",
+        "toGateId": "2F:JR東日本:東南改札",
+    }
+    normal = client.post("/v1/route", json=body).json()
+    flat = client.post("/v1/route", json={**body, "sameFloor": True}).json()
+
+    assert {p["ordinal"] for p in normal["points"]} != {2.0}
+    assert {p["ordinal"] for p in flat["points"]} == {2.0}
+
+
+def test_survey_page_is_served_with_a_content_security_policy(
+    client: TestClient,
+) -> None:
+    response = client.get("/survey")
+
+    assert response.status_code == 200
+    assert "script-src 'self'" in response.headers["content-security-policy"]
+    assert client.get("/static/survey.js").status_code == 200
+    gates = client.get("/v1/map", params={"ordinal": 2}).json()["gates"]
+    assert {"id", "name", "operator", "x", "z"} <= gates[0].keys()
