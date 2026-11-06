@@ -46,3 +46,10 @@ sysinfo.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# Python（server/）
+__pycache__/
+*.pyc
+.venv/
+venv/
+/server/data/
