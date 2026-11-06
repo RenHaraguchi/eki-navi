@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import glob
+import itertools
 import math
 import os
 import warnings
@@ -92,7 +93,9 @@ class StationNetwork:
         """data_root は「新宿駅周辺屋内地図オープンデータ（Shapefile）」フォルダ。"""
         self.data_root = data_root
         self.graph = nx.DiGraph()
-        self.nodes: dict[str, tuple[float, float, float]] = {}  # node_id → (x, z, ordinal)
+        self.nodes: dict[str, tuple[float, float, float]] = (
+            {}
+        )  # node_id → (x, z, ordinal)
         self.gates: dict[str, Gate] = {}
         self._load_network()
         self._load_gates()
@@ -106,7 +109,7 @@ class StationNetwork:
             self.nodes[rec["node_id"]] = (x, z, float(rec["ordinal"]))
 
         links = _reader(os.path.join(nw, "Shinjuku_link"), "cp932")
-        for rec, shape in zip(links.records(), links.shapes()):
+        for rec, shape in zip(links.records(), links.shapes(), strict=True):
             a, b = rec["start_id"], rec["end_id"]
             pts = [to_local(lon, lat) for lon, lat in shape.points]
             attrs = {
@@ -120,14 +123,20 @@ class StationNetwork:
 
     def _load_gates(self) -> None:
         floor_ordinal: dict[str, float] = {}
-        for path in glob.glob(os.path.join(self.data_root, "**", "*_Floor.shp"), recursive=True):
+        for path in glob.glob(
+            os.path.join(self.data_root, "**", "*_Floor.shp"), recursive=True
+        ):
             for rec in _reader(path, "utf-8").records():
                 floor_ordinal[rec["id"]] = float(rec["ordinal"])
 
-        for path in glob.glob(os.path.join(self.data_root, "**", "*_Opening.shp"), recursive=True):
-            station = _station_name(os.path.relpath(path, self.data_root).split(os.sep)[0])
+        for path in glob.glob(
+            os.path.join(self.data_root, "**", "*_Opening.shp"), recursive=True
+        ):
+            station = _station_name(
+                os.path.relpath(path, self.data_root).split(os.sep)[0]
+            )
             r = _reader(path, "utf-8")
-            for rec, shape in zip(r.records(), r.shapes()):
+            for rec, shape in zip(r.records(), r.shapes(), strict=True):
                 name = rec["name"] or ""
                 if "改札" not in name or not shape.points:
                     continue
@@ -136,7 +145,9 @@ class StationNetwork:
                 gate_id = f"{station}:{name}"
                 gate = self.gates.get(gate_id)
                 if gate is None:
-                    gate = Gate(gate_id, station, name, floor_ordinal.get(rec["floor_id"], 0.0))
+                    gate = Gate(
+                        gate_id, station, name, floor_ordinal.get(rec["floor_id"], 0.0)
+                    )
                     self.gates[gate_id] = gate
                 gate.positions.append(to_local(lon, lat))
 
@@ -145,7 +156,11 @@ class StationNetwork:
     def nearest_node(self, x: float, z: float, ordinal: float) -> tuple[str, float]:
         """同じ階のノードのうち、(x, z) にいちばん近いものと、その距離を返す。"""
         best = min(
-            ((math.hypot(nx_ - x, nz - z), nid) for nid, (nx_, nz, o) in self.nodes.items() if o == ordinal),
+            (
+                (math.hypot(nx_ - x, nz - z), nid)
+                for nid, (nx_, nz, o) in self.nodes.items()
+                if o == ordinal
+            ),
             default=None,
         )
         if best is None:
@@ -183,7 +198,7 @@ class StationNetwork:
 
         add(RoutePoint(sp[0], sp[1], start.ordinal))
         vertical_moves = []
-        for a, b in zip(path, path[1:]):
+        for a, b in itertools.pairwise(path):
             edge = self.graph[a][b]
             first = len(points) - 1
             ordinal_a, ordinal_b = self.nodes[a][2], self.nodes[b][2]
@@ -193,6 +208,8 @@ class StationNetwork:
                 add(RoutePoint(x, z, ordinal_a + (ordinal_b - ordinal_a) * i / n))
             kind = ROUTE_TYPE_NAMES.get(edge["route_type"])
             if kind:
-                vertical_moves.append({"kind": kind, "from_index": first, "to_index": len(points) - 1})
+                vertical_moves.append(
+                    {"kind": kind, "from_index": first, "to_index": len(points) - 1}
+                )
         add(RoutePoint(gp[0], gp[1], goal.ordinal))
         return Route(start, goal, length, points, vertical_moves)
