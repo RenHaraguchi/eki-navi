@@ -1,0 +1,159 @@
+{
+  "origin": {
+    "lat": 35.69,
+    "lon": 139.7
+  },
+  "start": {
+    "id": "2F:JR東日本:新南口改札",
+    "name": "新南口改札",
+    "ordinal": 2.0,
+    "operator": "JR東日本",
+    "floor": "2F"
+  },
+  "goal": {
+    "id": "3F:バスタ新宿:バスタ新宿",
+    "name": "バスタ新宿",
+    "ordinal": 3.0,
+    "operator": "バスタ新宿",
+    "floor": "3F"
+  },
+  "lengthMeters": 72.0,
+  "points": [
+    {
+      "x": 83.092,
+      "z": -177.621,
+      "ordinal": 2.0
+    },
+    {
+      "x": 75.608,
+      "z": -196.535,
+      "ordinal": 2.0
+    },
+    {
+      "x": 76.501,
+      "z": -202.385,
+      "ordinal": 2.0
+    },
+    {
+      "x": 63.27,
+      "z": -204.881,
+      "ordinal": 2.0
+    },
+    {
+      "x": 64.593,
+      "z": -211.901,
+      "ordinal": 2.0
+    },
+    {
+      "x": 63.527,
+      "z": -212.668,
+      "ordinal": 2.0
+    },
+    {
+      "x": 61.852,
+      "z": -213.037,
+      "ordinal": 2.0
+    },
+    {
+      "x": 61.794,
+      "z": -212.801,
+      "ordinal": 3.0
+    },
+    {
+      "x": 63.478,
+      "z": -212.434,
+      "ordinal": 3.0
+    },
+    {
+      "x": 64.739,
+      "z": -211.573,
+      "ordinal": 3.0
+    },
+    {
+      "x": 63.241,
+      "z": -203.621,
+      "ordinal": 3.0
+    },
+    {
+      "x": 69.785,
+      "z": -202.397,
+      "ordinal": 3.0
+    },
+    {
+      "x": 70.028,
+      "z": -201.45,
+      "ordinal": 3.0
+    }
+  ],
+  "verticalMoves": [
+    {
+      "kind": "elevator",
+      "fromIndex": 5,
+      "toIndex": 6
+    },
+    {
+      "kind": "elevator",
+      "fromIndex": 6,
+      "toIndex": 7
+    },
+    {
+      "kind": "elevator",
+      "fromIndex": 7,
+      "toIndex": 8
+    }
+  ],
+  "turns": [
+    {
+      "pointIndex": 1,
+      "direction": "left",
+      "angleDeg": 30.3,
+      "distanceFromStart": 20.3
+    },
+    {
+      "pointIndex": 2,
+      "direction": "right",
+      "angleDeg": 88.0,
+      "distanceFromStart": 26.3
+    },
+    {
+      "pointIndex": 3,
+      "direction": "left",
+      "angleDeg": 90.0,
+      "distanceFromStart": 39.7
+    },
+    {
+      "pointIndex": 4,
+      "direction": "right",
+      "angleDeg": 64.9,
+      "distanceFromStart": 46.9
+    },
+    {
+      "pointIndex": 9,
+      "direction": "left",
+      "angleDeg": 66.3,
+      "distanceFromStart": 53.4
+    },
+    {
+      "pointIndex": 10,
+      "direction": "right",
+      "angleDeg": 90.1,
+      "distanceFromStart": 61.5
+    },
+    {
+      "pointIndex": 11,
+      "direction": "left",
+      "angleDeg": 65.0,
+      "distanceFromStart": 68.1
+    }
+  ],
+  "goalLine": {
+    "ax": 67.129,
+    "az": -200.213,
+    "bx": 73.922,
+    "bz": -198.814
+  },
+  "startOffsetMeters": 0.0,
+  "signsOnRoute": [],
+  "source": "network",
+  "packVersion": "b63fb203"
+}

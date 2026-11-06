@@ -1,2 +1,7 @@
-networkx>=3.0
-pyshp>=2.3
+# サーバーの実行に必要なもの（Cloud Run のイメージに入る）
+# 開発期間中に動きが変わらないように固定している
+fastapi==0.162.0
+pydantic==2.14.3
+uvicorn==0.54.0
+httpx==0.28.1
+networkx==3.7

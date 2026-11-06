@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>駅ナビAR</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>駅ナビAR</h1>
+      <p>駅の案内板にスマホをかざすと現在地と向きが決まり、目的の改札まで床の上の青い線で案内するアプリです。このページでは、サーバーの経路探索と Gemini の行き先判定を試せます。</p>
+      <p class="links"><a id="video-link" hidden>デモ動画</a> <a id="apk-link" hidden>アプリ（Android）</a> <span id="links-pending">動画とアプリは準備中です</span></p>
+    </header>
+
+    <section aria-labelledby="start-heading">
+      <h2 id="start-heading">1. 出発の案内板</h2>
+      <label for="sign">案内板</label>
+      <select id="sign"></select>
+      <p class="hint">案内板の位置は現地確認前の仮データです。</p>
+    </section>
+
+    <section aria-labelledby="destination-heading">
+      <h2 id="destination-heading">2. 行き先を言葉で決める</h2>
+      <form id="destination-form">
+        <label for="text">行きたいところ</label>
+        <div class="row">
+          <input id="text" type="text" maxlength="200" value="京王線に乗りたい" autocomplete="off">
+          <button type="submit">判定</button>
+        </div>
+      </form>
+      <p id="destination-status" role="status"></p>
+      <ul id="candidates" class="candidates"></ul>
+      <p class="hint">入力は保存しません。個人情報は入力しないでください。</p>
+    </section>
+
+    <section aria-labelledby="gate-heading">
+      <h2 id="gate-heading">3. 一覧から選ぶ</h2>
+      <form id="route-form">
+        <label for="gate">行き先の改札</label>
+        <div class="row">
+          <select id="gate"></select>
+          <button type="submit">経路を出す</button>
+        </div>
+      </form>
+    </section>
+
+    <section aria-labelledby="route-heading">
+      <h2 id="route-heading">経路</h2>
+      <p id="route-summary" role="status">まだ経路を出していません。</p>
+      <svg id="map" role="img" aria-label="経路の図" viewBox="0 0 100 100"></svg>
+      <ol id="steps"></ol>
+    </section>
+
+    <footer>
+      <p id="attribution"></p>
+      <p>データの版: <span id="version">-</span></p>
+    </footer>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

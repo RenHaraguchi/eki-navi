@@ -1,0 +1,10 @@
+# 経路パックの生成、テスト、整形に使うもの
+-r requirements.txt
+pyshp>=2.3
+jsonschema>=4
+pytest>=8
+ruff
+black
+isort
+mypy
+bandit

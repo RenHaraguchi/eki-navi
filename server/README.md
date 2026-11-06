@@ -1,42 +1,81 @@
-# 経路探索（試作）
+# サーバーとデータ
 
-新宿駅周辺屋内地図オープンデータ（Shapefile）の歩行空間ネットワークから、改札から改札までの最短経路を計算し、Unity が読める JSON に書き出します。
+経路 API、行き先 API、審査員が開くページを持つサーバーと、地図データから経路パックを作る処理です。役割の間の取り決めは [contracts/README.md](../contracts/README.md) にあります。
 
-## 準備
-
-データは容量が大きいのでリポジトリには入れていません。「新宿駅周辺屋内地図オープンデータ（Shapefile）」の zip を各自ダウンロードして、`server/data/` に展開してください（このフォルダは Git の対象外です）。zip の中のファイル名は Shift_JIS なので、Mac の標準の展開では文字化けすることがあります。
+## 動かす
 
 ```
 cd server
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/uvicorn app.main:create_app --factory --port 8090
 ```
 
-## 使い方
+http://localhost:8090 を開くと、審査員が開くページで経路と行き先の判定を試せます。API の説明は http://localhost:8090/docs にあります。
 
-改札IDの一覧:
+Gemini のキーがなくても動きます（`GEMINI_BACKEND=stub`、既定）。このときは辞書だけで行き先を判定します。
+
+| 環境変数 | 意味 |
+|---|---|
+| `GEMINI_BACKEND` | `stub`（辞書のみ）、`apikey`（Gemini API のキー）、`vertex`（Cloud Run のサービスアカウント） |
+| `GEMINI_API_KEY` | `apikey` のときのキー。コミットしない |
+| `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION` | `vertex` のときの接続先 |
+| `GEMINI_MODEL` | 既定は `gemini-3.5-flash-lite` |
+| `GEMINI_DAILY_LIMIT` | 1日の Gemini の呼び出し上限（インスタンスごと）。超えると辞書に切り替える |
+| `API_RATE_PER_MINUTE` | 1分あたりの経路 API の上限（インスタンスごと、全員の合計） |
+| `GEMINI_RATE_PER_MINUTE` | 1分あたりの行き先 API の上限（インスタンスごと、全員の合計） |
+| `DEMO_VIDEO_URL`、`DEMO_APK_URL` | ページに出すリンク |
+
+## 経路パックを作り直す
+
+案内板（`station_data/signs.json`）、路線と改札の対応（`lines.json`）、手で直した線（`curated_lines.json`）、現地の差分（`overrides.csv`）を変えたら、経路パックを作り直してコミットします。
+
+地図データは容量が大きいのでリポジトリに入れていません。G空間情報センターから統合版と分割版の zip を取得して、`server/data/` に展開してください。統合版はネットワークと改札の位置に、分割版は事業者の判定に使います。zip の中のファイル名は Shift_JIS なので、Mac の標準の展開では文字化けすることがあります。
 
 ```
-.venv/bin/python -m route.export_route "data/新宿駅周辺屋内地図オープンデータ（Shapefile）" --list
+.venv/bin/python -m pack.build \
+    --integrated "data/新宿駅周辺屋内地図オープンデータ_統合版（Shapefile）" \
+    --split "data/新宿駅周辺屋内地図オープンデータ（Shapefile）"
+.venv/bin/python -m app.export_contracts
 ```
 
-経路を書き出す（例：JR 南改札 → 新南口改札）:
+現地の差分は `overrides.csv` に1行ずつ書きます。
+
+| type | target | 意味 |
+|---|---|---|
+| `close_link` | リンクの key | その通路を経路から外す |
+| `close_gate` | 改札の ID | その改札を行き先から外す |
+
+## 確かめる
 
 ```
-.venv/bin/python -m route.export_route "data/新宿駅周辺屋内地図オープンデータ（Shapefile）" \
-    "JR新宿駅:南改札" "JR新宿駅新南改札:新南口改札" \
-    ../Assets/EkiNavi/Routes/jr_south_to_new_south.json
+.venv/bin/python -m pytest
 ```
 
-## 座標の決まり
+地図データの場所を `EKINAVI_INTEGRATED` と `EKINAVI_SPLIT` に入れると、経路パックを作り直して、コミットしてあるものと一致するかも確かめます。
 
-- 単位はメートル
-- 原点は北緯 35.6900°・東経 139.7000° に固定（仮。`route/network.py` の `ORIGIN_LAT` / `ORIGIN_LON`）
-- 軸は Unity に合わせて x = 東、z = 北、y = 上
-- 階は `ordinal`（0 = 地上階、-1 = 地下1階、2 = 2階）
+行き先の判定の評価は次のとおりです。`eval/cases.json` の作った文だけを送ります。
 
-改札は各駅の `*_Opening.shp` のうち名前に「改札」を含むものを使い、同じ階のいちばん近いネットワークのノードにつないでいます。
+```
+GEMINI_BACKEND=apikey .venv/bin/python -m eval.run
+```
+
+## 配置
+
+`Dockerfile` で Cloud Run に配置します。経路パックをイメージに焼き込むので、地図データ本体は入りません。次のコマンドは未実行の例です。課金の担当とプロジェクトが決まってから確かめてください。
+
+```
+gcloud run deploy eki-navi --source . --region asia-northeast1 \
+    --allow-unauthenticated --max-instances 3 \
+    --set-env-vars GEMINI_BACKEND=vertex,GOOGLE_CLOUD_PROJECT=<プロジェクト>
+```
+
+回数の上限はインスタンスごとの全員の合計で、費用の上限として置いています。利用者ごとの制限ではないので、大量に呼ばれると他の利用者も断られます。`--max-instances` を必ず付け、予算アラートも設定してください（通知だけで止まりません）。
+
+## 古い書き出し（route/）
+
+`route/` は PR #2 で作った分割版からの書き出しです。`network.py` の座標の定義は `pack.build` でも使っています。`export_route.py` は経路パックと内容が違うので、Unity 側の読み込みを API に移したら整理します。
 
 ## 出典
 
-地図データは「新宿駅周辺屋内地図オープンデータ」（国土交通省）を加工して使っています。利用条件はデータの配布ページで確認してください。
+地図データは「新宿駅周辺屋内地図データ」（国土交通省）（https://www.geospatial.jp/ckan/dataset/mlit-indoor-shinjuku-r2）を加工して使っています。

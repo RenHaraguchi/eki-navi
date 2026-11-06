@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "unknown_gate",
+    "message": "改札が見つかりません"
+  }
+}

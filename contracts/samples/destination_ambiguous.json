@@ -1,0 +1,24 @@
+{
+  "status": "ambiguous",
+  "candidates": [
+    {
+      "gateId": "B1:京王:京王西口",
+      "name": "京王西口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1",
+      "lengthMeters": 190.6
+    },
+    {
+      "gateId": "B1:京王:京王新線口",
+      "name": "京王新線口",
+      "operator": "京王",
+      "ordinal": -1.0,
+      "floor": "B1",
+      "lengthMeters": 436.3
+    }
+  ],
+  "engine": "gemini",
+  "latencyMs": 0,
+  "packVersion": "b63fb203"
+}

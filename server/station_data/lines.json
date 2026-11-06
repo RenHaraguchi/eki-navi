@@ -1,0 +1,52 @@
+{
+  "lines": [
+    {
+      "id": "keio", "name": "京王線",
+      "aliases": ["京王", "京王線", "Keio", "Keio Line"],
+      "gateIds": ["B1:京王:京王西口", "B1:京王:京王百貨店口"],
+      "confirmed": false
+    },
+    {
+      "id": "keio-new", "name": "京王新線",
+      "aliases": ["京王新線", "Keio New Line"],
+      "gateIds": ["B1:京王:京王新線口", "B1:京王:新都心口"],
+      "confirmed": false
+    },
+    {
+      "id": "odakyu", "name": "小田急線",
+      "aliases": ["小田急", "小田急線", "ロマンスカー", "Odakyu", "Odakyu Line"],
+      "gateIds": ["B1:小田急:西口地下改札", "1F:小田急:西口地上改札", "2F:小田急:南札口"],
+      "confirmed": false
+    },
+    {
+      "id": "oedo", "name": "都営大江戸線",
+      "aliases": ["大江戸線", "都営大江戸線", "Oedo", "Oedo Line"],
+      "gateIds": ["B1:都営:大江戸線改札B", "B3:都営:JR新宿駅方面改札", "B3:都営:小滝橋通り方面改札"],
+      "confirmed": false
+    },
+    {
+      "id": "marunouchi", "name": "東京メトロ丸ノ内線",
+      "aliases": ["丸ノ内線", "丸の内線", "東京メトロ", "Marunouchi", "Marunouchi Line"],
+      "gateIds": ["B2:東京メトロ:西改札", "B2:東京メトロ:東改札"],
+      "confirmed": false
+    },
+    {
+      "id": "jr", "name": "JR線",
+      "aliases": ["JR", "山手線", "中央線", "総武線", "埼京線", "湘南新宿ライン", "成田エクスプレス", "JR East", "Yamanote", "Yamanote Line", "Chuo Line"],
+      "gateIds": ["B1:JR東日本:東改札", "B1:JR東日本:西改札", "B1:JR東日本:中央東改札", "B1:JR東日本:中央西改札", "2F:JR東日本:南改札", "2F:JR東日本:東南改札", "2F:JR東日本:新南口改札", "2F:JR東日本:ミライナタワー口改札", "2F:JR東日本:甲州街道改札"],
+      "confirmed": false
+    },
+    {
+      "id": "seibu", "name": "西武新宿線",
+      "aliases": ["西武", "西武新宿線", "Seibu", "Seibu Shinjuku Line"],
+      "gateIds": ["2F:西武:中央改札"],
+      "confirmed": false
+    },
+    {
+      "id": "busta", "name": "バスタ新宿",
+      "aliases": ["バスタ", "バスタ新宿", "高速バス", "空港バス", "夜行バス", "Busta", "Busta Shinjuku", "highway bus", "airport bus"],
+      "gateIds": ["3F:バスタ新宿:バスタ新宿"],
+      "confirmed": false
+    }
+  ]
+}
