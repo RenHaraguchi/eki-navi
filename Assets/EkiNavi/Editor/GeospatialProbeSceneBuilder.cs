@@ -81,10 +81,12 @@ namespace EkiNavi.EditorTools
         /// <summary>コマンドライン用。シーンを作り、環境変数 ARCORE_API_KEY のキーを設定して、APK をビルドする。</summary>
         public static void BuildApk()
         {
+            // 環境変数がなければ、前回のビルドで保存したキー（.gitignore 済みの設定ファイル）を使う
             var key = System.Environment.GetEnvironmentVariable("ARCORE_API_KEY");
+            if (string.IsNullOrEmpty(key)) key = ARCoreExtensionsProjectSettings.Instance.AndroidCloudServicesApiKey;
             if (string.IsNullOrEmpty(key))
             {
-                Debug.LogError("[EkiNavi] 環境変数 ARCORE_API_KEY が空です");
+                Debug.LogError("[EkiNavi] API キーがありません。環境変数 ARCORE_API_KEY に入れてください");
                 EditorApplication.Exit(1);
                 return;
             }
