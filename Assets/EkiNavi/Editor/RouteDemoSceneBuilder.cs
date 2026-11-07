@@ -35,6 +35,8 @@ namespace EkiNavi.EditorTools
             EditorApplication.ExecuteMenuItem("GameObject/XR/XR Origin (Mobile AR)");
 
             var origin = Object.FindFirstObjectByType<XROrigin>();
+            // メニューで置くとシーンビューの注視点に置かれることがあるので、原点に戻す
+            origin.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             var planeManager = origin.GetComponent<ARPlaneManager>() ?? origin.gameObject.AddComponent<ARPlaneManager>();
 
             var routeGo = new GameObject("Route");
@@ -51,6 +53,19 @@ namespace EkiNavi.EditorTools
             so.FindProperty("cameraTransform").objectReferenceValue = origin.Camera.transform;
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
             so.ApplyModifiedPropertiesWithoutUndo();
+
+            // 床の線の代わりに浮かぶ矢印で案内し、人混みでの位置のずれを加速度センサーで打ち消す
+            var guard = routeGo.AddComponent<RouteMotionGuard>();
+            var arrow = routeGo.AddComponent<RouteArrow>();
+            so = new SerializedObject(renderer);
+            so.FindProperty("drawLine").boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            foreach (var component in new Component[] { guard, arrow })
+            {
+                so = new SerializedObject(component);
+                so.FindProperty("cameraTransform").objectReferenceValue = origin.Camera.transform;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
