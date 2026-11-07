@@ -4,11 +4,22 @@
 
 ## 動かす
 
+Python 3.13 が必要です（`networkx==3.7` は 3.11 では入りません。Cloud Run のイメージも 3.13）。
+
 ```
 cd server
-python3 -m venv .venv
+python3.13 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/uvicorn app.main:create_app --factory --port 8090
+```
+
+Windows（PowerShell）では次のとおりです。以下の `.venv/bin/` は `.venv\Scripts\` に読み替えてください。
+
+```
+cd server
+py -3.13 -m venv .venv
+.venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\uvicorn app.main:create_app --factory --port 8090
 ```
 
 http://localhost:8090 を開くと、審査員が開くページで経路と行き先の判定を試せます。API の説明は http://localhost:8090/docs にあります。
