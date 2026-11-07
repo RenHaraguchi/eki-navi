@@ -56,3 +56,6 @@ venv/
 
 # 鍵を入れるファイル
 .env
+
+# Geospatial の API キーが入るので、コミットしない
+/ProjectSettings/ARCoreExtensionsProjectSettings.json

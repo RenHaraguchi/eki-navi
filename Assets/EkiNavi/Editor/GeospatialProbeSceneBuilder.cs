@@ -17,17 +17,23 @@ namespace EkiNavi.EditorTools
     ///
     /// あわせて ARCore Extensions のプロジェクト設定で Geospatial をオンにし、認証を API キーにする。
     /// API キーそのものは Project Settings > XR Plug-in Management > ARCore Extensions に手で入れる
-    /// （ProjectSettings/ARCoreExtensionsProjectSettings.json に保存されるので、キーを入れたらこのファイルはコミットしない）。
+    /// （ProjectSettings/ARCoreExtensionsProjectSettings.json に保存される。このファイルは .gitignore に入れてある）。
+    ///
+    /// コマンドラインからは、環境変数 ARCORE_API_KEY にキーを入れて BuildApk を呼ぶと、シーン作成から APK のビルドまで行う:
+    ///   Unity -batchmode -quit -projectPath . -buildTarget Android \
+    ///     -executeMethod EkiNavi.EditorTools.GeospatialProbeSceneBuilder.BuildApk -logFile -
+    /// できた APK は Builds/eki-navi-geo.apk。
     /// </summary>
     public static class GeospatialProbeSceneBuilder
     {
         const string ScenePath = "Assets/EkiNavi/Scenes/GeospatialProbe.unity";
         const string ConfigPath = "Assets/EkiNavi/Geospatial/GeospatialConfig.asset";
+        const string ApkPath = "Builds/eki-navi-geo.apk";
 
         [MenuItem("EkiNavi/Geospatial の確認用シーンを作る")]
         public static void Build()
         {
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
             EnableGeospatialInProjectSettings();
 
@@ -69,7 +75,43 @@ namespace EkiNavi.EditorTools
             EditorBuildSettings.scenes = scenes.ToArray();
 
             Debug.Log($"[EkiNavi] {ScenePath} を作りました。Project Settings > XR Plug-in Management > ARCore Extensions に API キーを入れてからビルドしてください");
-            SettingsService.OpenProjectSettings("Project/XR Plug-in Management/ARCore Extensions");
+            if (!Application.isBatchMode) SettingsService.OpenProjectSettings("Project/XR Plug-in Management/ARCore Extensions");
+        }
+
+        /// <summary>コマンドライン用。シーンを作り、環境変数 ARCORE_API_KEY のキーを設定して、APK をビルドする。</summary>
+        public static void BuildApk()
+        {
+            var key = System.Environment.GetEnvironmentVariable("ARCORE_API_KEY");
+            if (string.IsNullOrEmpty(key))
+            {
+                Debug.LogError("[EkiNavi] 環境変数 ARCORE_API_KEY が空です");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            Build();
+
+            var settings = ARCoreExtensionsProjectSettings.Instance;
+            settings.AndroidAuthenticationStrategySetting = AndroidAuthenticationStrategy.ApiKey;
+            settings.AndroidCloudServicesApiKey = key;
+            settings.Save();
+
+            Directory.CreateDirectory(Path.GetDirectoryName(ApkPath));
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = ApkPath,
+                target = BuildTarget.Android,
+                options = BuildOptions.None,
+            });
+
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                Debug.LogError($"[EkiNavi] ビルドに失敗しました: {report.summary.result}");
+                EditorApplication.Exit(1);
+                return;
+            }
+            Debug.Log($"[EkiNavi] {ApkPath} をビルドしました");
         }
 
         static void EnableGeospatialInProjectSettings()
