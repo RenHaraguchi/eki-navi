@@ -91,6 +91,11 @@ namespace EkiNavi.EditorTools
 
             Build();
 
+            // 試験に使う端末が Android 10 なので、ProjectSettings の値によらずここで合わせる
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
+            PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.ekinavi.geoprobe");
+            PlayerSettings.productName = "eki-navi-geo";
+
             var settings = ARCoreExtensionsProjectSettings.Instance;
             settings.AndroidAuthenticationStrategySetting = AndroidAuthenticationStrategy.ApiKey;
             settings.AndroidCloudServicesApiKey = key;
