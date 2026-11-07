@@ -137,6 +137,10 @@ namespace EkiNavi.Route
                     yield break;
                 }
 
+                var selector = arCamera.GetComponent<CameraResolutionSelector>();
+                if (selector != null && selector.Selected.Length == 0)
+                    Debug.LogWarning("[EkiNavi] カメラの解像度がまだ既定のままです。遠くの文字は読めないかもしれません");
+
                 byte[] jpeg = Encode(best);
                 status = $"Sending {jpeg.Length / 1024} KB...";
                 var body = JsonUtility.ToJson(new IdentifyRequest

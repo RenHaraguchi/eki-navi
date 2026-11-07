@@ -100,6 +100,10 @@ namespace EkiNavi.EditorTools
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // ARCore は既定で 640×480 を選ぶことがあるので、起動したら大きい解像度に切り替える
+            if (!origin.Camera.TryGetComponent<CameraResolutionSelector>(out _))
+                origin.Camera.gameObject.AddComponent<CameraResolutionSelector>();
+
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
 
