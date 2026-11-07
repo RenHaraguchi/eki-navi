@@ -95,11 +95,16 @@ namespace EkiNavi.EditorTools
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
             PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.ekinavi.geoprobe");
             PlayerSettings.productName = "eki-navi-geo";
+            // VPS は Google のサーバーに問い合わせるので、インターネットの許可を必ず付ける
+            // （Unity は通信の API を使っていないと INTERNET を付けない）
+            PlayerSettings.Android.forceInternetPermission = true;
 
             var settings = ARCoreExtensionsProjectSettings.Instance;
             settings.AndroidAuthenticationStrategySetting = AndroidAuthenticationStrategy.ApiKey;
             settings.AndroidCloudServicesApiKey = key;
             settings.Save();
+
+            ResolveAndroidDependencies();
 
             Directory.CreateDirectory(Path.GetDirectoryName(ApkPath));
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -117,6 +122,25 @@ namespace EkiNavi.EditorTools
                 return;
             }
             Debug.Log($"[EkiNavi] {ApkPath} をビルドしました");
+        }
+
+        /// <summary>
+        /// Geospatial が使う play-services-location を、External Dependency Manager で取り込む。
+        /// バッチモードでは自動で取り込まれないので、ここで明示的に行う。
+        /// </summary>
+        static void ResolveAndroidDependencies()
+        {
+            var resolver = System.AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("GooglePlayServices.PlayServicesResolver"))
+                .FirstOrDefault(t => t != null);
+            var resolveSync = resolver?.GetMethod("ResolveSync", new[] { typeof(bool) });
+            if (resolveSync == null)
+            {
+                Debug.LogWarning("[EkiNavi] External Dependency Manager が見つからないので、Android の依存関係を取り込めませんでした");
+                return;
+            }
+            var ok = (bool)resolveSync.Invoke(null, new object[] { true });
+            Debug.Log($"[EkiNavi] Android の依存関係の取り込み: {(ok ? "成功" : "失敗")}");
         }
 
         static void EnableGeospatialInProjectSettings()
