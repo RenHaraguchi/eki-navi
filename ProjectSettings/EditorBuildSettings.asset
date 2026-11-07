@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/EkiNavi/Scenes/SignRouteDemo.unity
+    guid: 153cd8a7bd37d48e298062d6b5f1544b
+  - enabled: 1
     path: Assets/EkiNavi/Scenes/RouteDemo.unity
     guid: 70046303674c34672a3817c16fb7010f
   - enabled: 1
