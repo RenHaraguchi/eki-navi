@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "駅ナビAR API",
-    "version": "b63fb203"
+    "version": "a2f1e2fe"
   },
   "paths": {
     "/healthz": {
