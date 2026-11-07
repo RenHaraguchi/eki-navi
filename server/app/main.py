@@ -22,6 +22,14 @@ from app.config import Settings, load_settings
 from app.destination import DestinationResolver, ResolvedCandidate
 from app.gemini import Classifier, GeminiClassifier
 from app.limits import WindowLimiter
+from app.sign_vision import (
+    GeminiSignIdentifier,
+    InvalidImageError,
+    SignIdentifier,
+    candidates_of,
+    decode_image,
+    run_identify,
+)
 from app.station import PlannedRoute, Station, StationError
 
 LOGGER = logging.getLogger("ekinavi")
@@ -172,6 +180,9 @@ def _add_middleware(app: FastAPI, settings: Settings) -> None:
         "/v1/destination": WindowLimiter(
             settings.gemini_rate_per_minute, SECONDS_PER_MINUTE
         ),
+        "/v1/sign/identify": WindowLimiter(
+            settings.gemini_rate_per_minute, SECONDS_PER_MINUTE
+        ),
     }
 
     @app.middleware("http")
@@ -195,6 +206,63 @@ def _build_classifier(
     if settings.gemini_backend == "stub":
         return None
     return GeminiClassifier(settings, build_targets(station.pack))
+
+
+def _build_sign_identifier(
+    settings: Settings, identifier: SignIdentifier | None
+) -> SignIdentifier | None:
+    if identifier is not None:
+        return identifier
+    if settings.gemini_backend == "stub":
+        return None
+    return GeminiSignIdentifier(settings)
+
+
+def _add_sign_vision_route(
+    app: FastAPI,
+    station: Station,
+    identifier: SignIdentifier | None,
+    daily: WindowLimiter,
+) -> None:
+    """カメラの画像から案内板を見分ける API。"""
+
+    @app.post("/v1/sign/identify", response_model=schemas.SignIdentifyResponse)
+    def identify_sign(
+        body: schemas.SignIdentifyRequest,
+    ) -> schemas.SignIdentifyResponse | JSONResponse:
+        try:
+            image = decode_image(body.image_base64, body.mime_type)
+        except InvalidImageError as error:
+            return _error_response(422, "invalid_image", str(error))
+        candidates = candidates_of(
+            station.pack["signs"], list(body.candidate_sign_ids), None
+        )
+        if not candidates:
+            raise StationError("unknown_sign", "候補の案内板が見つかりません")
+        result = run_identify(
+            identifier,
+            image,
+            body.mime_type,
+            candidates,
+            allow=identifier is not None and daily.allow(),
+        )
+        if result.status == "unavailable" and identifier is not None:
+            LOGGER.warning("案内板を見分けられませんでした（%d ms）", result.latency_ms)
+        box = result.box
+        return schemas.SignIdentifyResponse(
+            status=result.status,  # type: ignore[arg-type]
+            sign_id=result.sign_id,
+            box=schemas.ImageBox(
+                x_min=box.x_min if box else 0.0,
+                y_min=box.y_min if box else 0.0,
+                x_max=box.x_max if box else 0.0,
+                y_max=box.y_max if box else 0.0,
+            ),
+            corners=[schemas.ImagePoint(x=x, y=y) for x, y in result.corners],
+            engine="gemini" if identifier is not None else "stub",
+            latency_ms=result.latency_ms,
+            pack_version=station.version,
+        )
 
 
 def _add_page_routes(app: FastAPI, station: Station, settings: Settings) -> None:
@@ -271,13 +339,16 @@ def _add_api_routes(
 
 
 def create_app(
-    settings: Settings | None = None, classifier: Classifier | None = None
+    settings: Settings | None = None,
+    classifier: Classifier | None = None,
+    sign_identifier: SignIdentifier | None = None,
 ) -> FastAPI:
     """サーバーを組み立てる。
 
     Args:
         settings: 設定。省略時は環境変数から読む。
         classifier: Gemini の判定処理。テストで差し替えるときに渡す。
+        sign_identifier: 案内板を見分ける処理。テストで差し替えるときに渡す。
 
     Returns:
         FastAPI のアプリ。
@@ -296,6 +367,12 @@ def create_app(
     _add_exception_handlers(app)
     _add_middleware(app, resolved)
     _add_api_routes(app, station, resolver)
+    _add_sign_vision_route(
+        app,
+        station,
+        _build_sign_identifier(resolved, sign_identifier),
+        WindowLimiter(resolved.gemini_daily_limit, SECONDS_PER_DAY),
+    )
     _add_page_routes(app, station, resolved)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     LOGGER.info(

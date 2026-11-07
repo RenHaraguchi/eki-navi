@@ -8,13 +8,24 @@
 
 from __future__ import annotations
 
+from typing import Annotated, Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from app.vocab import DestinationStatus, Engine, RouteSource, TurnDirection
+from app.vocab import (
+    DestinationStatus,
+    Engine,
+    RouteSource,
+    SignVisionStatus,
+    TurnDirection,
+)
 
 MAX_ID_LENGTH = 120
 MAX_TEXT_LENGTH = 200
+# 長辺 1600px の JPEG（品質 85）で 0.5MB ほど。余裕を見て base64 で 4MB まで
+MAX_IMAGE_BASE64_LENGTH = 4_000_000
+MAX_SIGN_CANDIDATES = 30
 
 
 class ApiModel(BaseModel):
@@ -245,3 +256,48 @@ class ErrorResponse(ApiModel):
     """エラーの共通形式。"""
 
     error: ErrorDetail
+
+
+class SignIdentifyRequest(ApiModel):
+    """カメラの画像から案内板を見分ける問い合わせ。"""
+
+    image_base64: str = Field(min_length=1, max_length=MAX_IMAGE_BASE64_LENGTH)
+    mime_type: Literal["image/jpeg", "image/png"] = "image/jpeg"
+    candidate_sign_ids: list[
+        Annotated[str, Field(min_length=1, max_length=MAX_ID_LENGTH)]
+    ] = Field(min_length=1, max_length=MAX_SIGN_CANDIDATES)
+
+
+class ImageBox(ApiModel):
+    """画像の中の枠。0〜1 に正規化し、左上が原点。見つからないときは全部 0。"""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+
+
+class ImagePoint(ApiModel):
+    """画像の中の点。0〜1 に正規化し、左上が原点。"""
+
+    x: float
+    y: float
+
+
+class SignIdentifyResponse(ApiModel):
+    """案内板を見分けた結果。
+
+    status の意味:
+    - ok: signId の板が box の位置に写っている。corners は板の左上、右上、右下、左下の角
+      （答えがないか、形がおかしければ []。そのときは box だけで位置を求める）
+    - not_found: 候補の板は写っていない。かざし直してもらう
+    - unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）
+    """
+
+    status: SignVisionStatus
+    sign_id: str
+    box: ImageBox
+    corners: list[ImagePoint]
+    engine: Engine
+    latency_ms: int
+    pack_version: str

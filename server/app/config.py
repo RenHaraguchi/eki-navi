@@ -27,6 +27,7 @@ class Settings:
     gemini_backend: str = "stub"
     gemini_api_key: str = ""
     gemini_model: str = DEFAULT_MODEL
+    gemini_vision_model: str = ""
     gemini_timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     gemini_daily_limit: int = DEFAULT_DAILY_LIMIT
     google_project: str = ""
@@ -63,6 +64,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         gemini_backend=backend,
         gemini_api_key=source.get("GEMINI_API_KEY", ""),
         gemini_model=source.get("GEMINI_MODEL", DEFAULT_MODEL),
+        gemini_vision_model=source.get("GEMINI_VISION_MODEL", ""),
         gemini_timeout_seconds=float(
             source.get("GEMINI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
         ),

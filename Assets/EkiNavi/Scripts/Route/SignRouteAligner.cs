@@ -70,6 +70,9 @@ namespace EkiNavi.Route
 
         public bool Arrived { get; private set; }
 
+        /// <summary>案内板の一覧。SignVisionAligner が候補を選ぶのに使う。</summary>
+        public SignCatalog Catalog => catalog;
+
         /// <summary>経路が案内板に合わせて置かれているか。</summary>
         public bool IsAligned => state == State.Aligned;
 
@@ -223,13 +226,37 @@ namespace EkiNavi.Route
 
         void Align(ARTrackedImage image, SignEntry sign)
         {
-            alignedSign = sign;
             detectedAzimuth = stabilizer.MeanAzimuthDeg;
-            alignment = sign.Align(stabilizer.MeanPosition, stabilizer.MeanNormal);
+            ApplyAlignment(sign, stabilizer.MeanPosition, stabilizer.MeanNormal, image.transform.position.y);
+            usedId = image.trackableId;
+            stabilizer.Reset();
+            stabilizingId = TrackableId.invalidId;
+        }
+
+        /// <summary>
+        /// 画像認識を使わずに見つけた案内板（SignVisionAligner が Gemini で見分けたもの）で経路を合わせる。
+        /// </summary>
+        /// <param name="sign">見分けた板。</param>
+        /// <param name="signPosition">板の中心（AR の座標）。</param>
+        /// <param name="horizontalNormal">板の外向きの法線を水平にしたもの (x, z)。</param>
+        public void AlignFromVision(SignEntry sign, Vector3 signPosition, Vector2 horizontalNormal)
+        {
+            if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            if (cameraTransform == null || sign == null) return;
+            detectedAzimuth = Azimuth.Of(horizontalNormal);
+            ApplyAlignment(sign, new Vector2(signPosition.x, signPosition.z), horizontalNormal, signPosition.y);
+            stabilizer.Reset();
+            stabilizingId = TrackableId.invalidId;
+        }
+
+        void ApplyAlignment(SignEntry sign, Vector2 signPositionXZ, Vector2 horizontalNormal, float signCenterY)
+        {
+            alignedSign = sign;
+            alignment = sign.Align(signPositionXZ, horizontalNormal);
             floor = FloorHeight.Choose(
                 cameraTransform.position.y,
                 HorizontalPlaneHeights(),
-                image.transform.position.y - sign.centerHeightMeters,
+                signCenterY - sign.centerHeightMeters,
                 eyeHeight);
 
             var first = route.Data.points[0];
@@ -239,9 +266,6 @@ namespace EkiNavi.Route
             if (TryGetComponent<RouteMotionGuard>(out var guard)) guard.OnAligned();
 
             state = State.Aligned;
-            usedId = image.trackableId;
-            stabilizer.Reset();
-            stabilizingId = TrackableId.invalidId;
             Arrived = false;
             message = "";
             Debug.Log($"[EkiNavi] {sign.id} で経路を合わせました: yaw {alignment.YawDeg:0.0}°、床 {floor.Y:0.00}m（{floor.Source}）");
