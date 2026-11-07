@@ -15,6 +15,7 @@ namespace EkiNavi.Route
     /// 2. 板が追跡中の間、位置と法線を DetectionStabilizer に入れ、落ち着くまで待つ（0.5秒、2cm、1度。仮）
     /// 3. 落ち着いたら、一覧の値と組み合わせて地図と AR の変換を作り、RouteRenderer を置く
     /// 4. AR の追跡が1秒止まったら（またはアプリが一時停止したら）線を消し、案内板にかざし直すまで出さない
+    /// 5. 合わせている間は、3 の変換を逆に使って、カメラの地図上の位置と向いている方位を出す
     ///
     /// 開発用に、認識した板に軸（赤 = X、緑 = Y、青 = Z）を出す。緑が板の表から手前に向いていれば、
     /// 「+Y が板の法線」という前提が合っている。
@@ -69,6 +70,15 @@ namespace EkiNavi.Route
         Material[] axisMaterials;
 
         public bool Arrived { get; private set; }
+
+        /// <summary>カメラの地図上の位置 (x, z)。<see cref="IsAligned"/> のときだけ意味がある。</summary>
+        public Vector2 MapPosition { get; private set; }
+
+        /// <summary>カメラが地図上で向いている方位（北から時計回り）。<see cref="IsAligned"/> のときだけ意味がある。</summary>
+        public float MapHeadingDeg { get; private set; }
+
+        /// <summary>いまいる階。合わせた案内板の ordinal。<see cref="IsAligned"/> のときだけ意味がある。</summary>
+        public float MapOrdinal => alignedSign != null ? alignedSign.ordinal : 0f;
 
         /// <summary>経路が案内板に合わせて置かれているか。</summary>
         public bool IsAligned => state == State.Aligned;
@@ -257,6 +267,7 @@ namespace EkiNavi.Route
 
         void UpdateProgress()
         {
+            UpdateMapPose();
             remaining = route.RemainingDistance(cameraTransform.position);
             var toGoal = route.GoalWorldPosition - cameraTransform.position;
             toGoal.y = 0f;
@@ -265,6 +276,16 @@ namespace EkiNavi.Route
                 Arrived = true;
                 Debug.Log($"[EkiNavi] {route.Data.goal.name} に到着しました");
             }
+        }
+
+        /// <summary>カメラの位置と正面の向きを地図の座標にする。</summary>
+        void UpdateMapPose()
+        {
+            MapPosition = alignment.ArToMap(cameraTransform.position);
+            // 真上や真下を向いているときは正面の水平成分がほぼないので、前の方位のままにする
+            var forward = cameraTransform.forward;
+            var flat = new Vector2(forward.x, forward.z);
+            if (flat.sqrMagnitude > 0.01f) MapHeadingDeg = alignment.ArDirectionToMapAzimuth(flat);
         }
 
         // ---- 開発用の表示 ----
@@ -330,6 +351,7 @@ namespace EkiNavi.Route
                     text = Arrived
                         ? $"Arrived: {route.Data.goal.name}"
                         : $"Remaining: {remaining:0} m   (2-finger tap to re-align)";
+                    text += $"\nMap x {MapPosition.x:0.0}  z {MapPosition.y:0.0}  floor {alignedSign.ordinal:0}  heading {MapHeadingDeg:0}";
                     text += $"\nSign {alignedSign.id}  yaw {alignment.YawDeg:0.0}  normal {detectedAzimuth:0.0}  floor {floor.Source} {floor.Y:0.00}";
                     break;
                 case State.Stabilizing:

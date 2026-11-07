@@ -61,6 +61,22 @@ namespace EkiNavi.Alignment
         }
 
         /// <summary>
+        /// AR の点 (x, z) を地図の (x, z) にする。<see cref="MapToAr(Vector2)"/> の逆。
+        /// カメラの位置を入れれば、地図上のいまの位置になる。
+        /// </summary>
+        public Vector2 ArToMap(Vector2 ar) => Azimuth.RotateY(ar - SignAr, -YawDeg) + SignMap;
+
+        /// <summary>AR の点の水平成分 (x, z) を地図の (x, z) にする。高さは捨てる。</summary>
+        public Vector2 ArToMap(Vector3 ar) => ArToMap(new Vector2(ar.x, ar.z));
+
+        /// <summary>
+        /// AR の水平の向き (x, z) が、地図の上でどの方位か。0 以上 360 未満。
+        /// カメラの正面を入れれば、地図上でいま向いている方位になる。
+        /// </summary>
+        public float ArDirectionToMapAzimuth(Vector2 arDirection) =>
+            Azimuth.Of(Azimuth.RotateY(arDirection, -YawDeg));
+
+        /// <summary>
         /// RouteRenderer を置く位置と回転。RouteRenderer は経路の最初の点を原点にして描くので、
         /// その点の AR 上の位置と、この変換の回転を transform に入れれば、地図の経路が AR に重なる。
         /// </summary>

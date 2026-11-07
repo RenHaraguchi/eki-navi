@@ -103,6 +103,48 @@ namespace EkiNavi.Alignment.Tests
             }
         }
 
+        [Test]
+        public void ArToMapUndoesMapToArForTheReference()
+        {
+            foreach (var c in LoadVectors())
+            {
+                var alignment = Align(c);
+                foreach (var pair in c.mapToAr)
+                {
+                    var actual = alignment.ArToMap(pair.ar.ToVector2());
+                    var expected = pair.map.ToVector2();
+                    Assert.That((actual - expected).magnitude, Is.LessThan(PositionTolerance),
+                        $"{c.name}: AR ({pair.ar.x}, {pair.ar.z}) → {actual} / 期待 {expected}");
+                }
+            }
+        }
+
+        [Test]
+        public void ArToMapIgnoresHeight()
+        {
+            var alignment = new SignAlignment(30f, new Vector2(20f, 136.5f), new Vector2(1f, 2f));
+            var a = alignment.ArToMap(new Vector3(4f, -1.4f, 5f));
+            var b = alignment.ArToMap(new Vector3(4f, 3f, 5f));
+            Assert.That((a - b).magnitude, Is.LessThan(PositionTolerance));
+            Assert.That((a - alignment.ArToMap(new Vector2(4f, 5f))).magnitude, Is.LessThan(PositionTolerance));
+        }
+
+        [Test]
+        public void FacingTheSignMeansFacingOppositeItsRegisteredAzimuth()
+        {
+            // 板の表に立って板を見ると、地図の上では板の向き（azimuthDeg）の反対を向いている
+            foreach (var c in LoadVectors())
+            {
+                var alignment = Align(c);
+                var facingSign = -c.detectedNormal.ToVector2();
+                var expected = c.signAzimuthDeg + c.correctionYawDeg + 180f;
+                var actual = alignment.ArDirectionToMapAzimuth(facingSign);
+                Assert.That(Mathf.Abs(Mathf.DeltaAngle(actual, expected)), Is.LessThan(AngleTolerance),
+                    $"{c.name}: {actual} / 期待 {expected}");
+                Assert.That(actual, Is.GreaterThanOrEqualTo(0f).And.LessThan(360f), $"{c.name}: 範囲外 {actual}");
+            }
+        }
+
         // ---- Unity の回転との一致 ----
 
         [Test]
