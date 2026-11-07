@@ -13,6 +13,9 @@ namespace EkiNavi.Route
         [SerializeField] Material lineMaterial;
         [SerializeField] Material arrowMaterial;
 
+        [Tooltip("床に青い帯と矢印を描く。オフにすると線は描かず、RouteArrow の浮かぶ矢印だけで案内する")]
+        [SerializeField] bool drawLine = true;
+
         [Header("見た目（単位はメートル）")]
         [SerializeField] float lineWidth = 0.4f;
         [SerializeField] float heightAboveFloor = 0.02f;
@@ -30,6 +33,9 @@ namespace EkiNavi.Route
         public IReadOnlyList<Vector3> LocalPoints => points;
         public Vector3 GoalWorldPosition => transform.TransformPoint(points[^1]);
 
+        /// <summary>経路を合わせて表示している間 true。線を描かない設定でも、案内中かどうかを表す。</summary>
+        public bool IsVisible { get; private set; }
+
         void Awake()
         {
             Load();
@@ -46,7 +52,8 @@ namespace EkiNavi.Route
 
         public void SetVisible(bool visible)
         {
-            if (visuals != null) visuals.SetActive(visible);
+            IsVisible = visible;
+            if (visuals != null) visuals.SetActive(visible && drawLine);
         }
 
         /// <summary>出発点から minDistance 以上離れた最初の点への向き（水平）。</summary>
