@@ -236,6 +236,7 @@ namespace EkiNavi.Route
             var pose = alignment.RouteRendererPose(new Vector2(first.x, first.z), floor.Y);
             route.transform.SetPositionAndRotation(pose.position, pose.rotation);
             route.SetVisible(true);
+            if (TryGetComponent<RouteMotionGuard>(out var guard)) guard.OnAligned();
 
             state = State.Aligned;
             usedId = image.trackableId;
