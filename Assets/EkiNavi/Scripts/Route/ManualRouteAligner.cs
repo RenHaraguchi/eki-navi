@@ -83,6 +83,7 @@ namespace EkiNavi.Route
             aligned = true;
             Arrived = false;
             route.SetVisible(true);
+            if (TryGetComponent<RouteMotionGuard>(out var guard)) guard.OnAligned();
             Debug.Log($"[EkiNavi] 経路を合わせました: {route.Data.start.name} → {route.Data.goal.name}（{route.Data.lengthMeters:0}m）");
         }
 
