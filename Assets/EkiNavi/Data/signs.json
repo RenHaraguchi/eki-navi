@@ -3,6 +3,7 @@
     {
       "id": "S-2F-R01-A",
       "name": "南改札前 吊り下げ「小田急線・京王線・京王新線 通路」 全体",
+      "text": "↑ 小田急線 Odakyu Line｜京王線 Keio Line｜京王新線 通路 Keio New Line Concourse｜京王新線 Keio New Line｜都営大江戸線新宿駅 Oedo Line, Shinjuku Sta.｜都営新宿線 Shinjuku Line｜都庁第二本庁舎方面 for TMG No.2 Bldg.（白地に黒い文字、左端に上向きの矢印、中央に赤い四角の「京王新線 通路」）",
       "imageName": "sign_2f_r01_a",
       "x": 8.0, "z": -72.0, "ordinal": 2, "azimuthDeg": 80.0,
       "widthMeters": 6.5, "heightMeters": 0.6, "centerHeightMeters": 3.5,
@@ -14,6 +15,7 @@
     {
       "id": "S-2F-R01-A-RIGHT",
       "name": "南改札前 吊り下げ「京王新線 通路〜都庁第二本庁舎方面」 右半分",
+      "text": "京王新線 通路 Keio New Line Concourse｜京王新線 Keio New Line｜都営大江戸線新宿駅 Oedo Line, Shinjuku Sta.｜都営新宿線 Shinjuku Line｜都庁第二本庁舎方面 for TMG No.2 Bldg.（左端に赤い四角の「京王新線 通路」。S-2F-R01-A の右半分）",
       "imageName": "sign_2f_r01_a_right",
       "x": 7.7, "z": -70.3, "ordinal": 2, "azimuthDeg": 80.0,
       "widthMeters": 3.1, "heightMeters": 0.6, "centerHeightMeters": 3.5,

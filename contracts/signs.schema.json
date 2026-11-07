@@ -31,6 +31,7 @@
           "correctionX": {"type": "number", "description": "現地で線を見て決める東方向の補正"},
           "correctionZ": {"type": "number", "description": "現地で線を見て決める北方向の補正"},
           "confidence": {"enum": ["実測", "図面", "推定", "未確認", "仮"]},
+          "text": {"type": "string", "description": "板に書いてある主な文字（路線名、出口、矢印の向きなど）。Gemini でどの板かを見分けるときに使う。なくてもよい"},
           "note": {"type": "string"}
         }
       }
