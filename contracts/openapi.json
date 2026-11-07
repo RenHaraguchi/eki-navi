@@ -117,6 +117,44 @@
         }
       }
     },
+    "/v1/sign/identify": {
+      "post": {
+        "summary": "Identify Sign",
+        "operationId": "identify_sign_v1_sign_identify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignIdentifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignIdentifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/site": {
       "get": {
         "summary": "Site",
@@ -400,6 +438,35 @@
         "title": "HealthResponse",
         "description": "動作確認用。"
       },
+      "ImageBox": {
+        "properties": {
+          "xMin": {
+            "type": "number",
+            "title": "Xmin"
+          },
+          "yMin": {
+            "type": "number",
+            "title": "Ymin"
+          },
+          "xMax": {
+            "type": "number",
+            "title": "Xmax"
+          },
+          "yMax": {
+            "type": "number",
+            "title": "Ymax"
+          }
+        },
+        "type": "object",
+        "required": [
+          "xMin",
+          "yMin",
+          "xMax",
+          "yMax"
+        ],
+        "title": "ImageBox",
+        "description": "画像の中の枠。0〜1 に正規化し、左上が原点。見つからないときは全部 0。"
+      },
       "LineOut": {
         "properties": {
           "id": {
@@ -682,6 +749,91 @@
         ],
         "title": "RouteResponse",
         "description": "経路。RouteData.cs が読むキーに、追加のキーを足している。"
+      },
+      "SignIdentifyRequest": {
+        "properties": {
+          "imageBase64": {
+            "type": "string",
+            "maxLength": 4000000,
+            "minLength": 1,
+            "title": "Imagebase64"
+          },
+          "mimeType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png"
+            ],
+            "title": "Mimetype",
+            "default": "image/jpeg"
+          },
+          "candidateSignIds": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Candidatesignids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "imageBase64",
+          "candidateSignIds"
+        ],
+        "title": "SignIdentifyRequest",
+        "description": "カメラの画像から案内板を見分ける問い合わせ。"
+      },
+      "SignIdentifyResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "not_found",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "signId": {
+            "type": "string",
+            "title": "Signid"
+          },
+          "box": {
+            "$ref": "#/components/schemas/ImageBox"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "gemini",
+              "dictionary",
+              "stub"
+            ],
+            "title": "Engine"
+          },
+          "latencyMs": {
+            "type": "integer",
+            "title": "Latencyms"
+          },
+          "packVersion": {
+            "type": "string",
+            "title": "Packversion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "signId",
+          "box",
+          "engine",
+          "latencyMs",
+          "packVersion"
+        ],
+        "title": "SignIdentifyResponse",
+        "description": "案内板を見分けた結果。\n\nstatus の意味:\n- ok: signId の板が box の位置に写っている\n- not_found: 候補の板は写っていない。かざし直してもらう\n- unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）"
       },
       "SignOnRoute": {
         "properties": {
