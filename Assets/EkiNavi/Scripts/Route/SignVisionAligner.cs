@@ -18,8 +18,9 @@ namespace EkiNavi.Route
     /// 1. 0.3 秒ほどの間に数フレーム写し、カメラの回転がいちばん小さかった（ぶれにくい）1枚を選ぶ
     ///    画像は画面と同じ向きと切り取り方（ARCameraBackground の material で写す）
     /// 2. 写した瞬間のカメラの位置・向き・projection を覚えておく。答えが返るまでに歩いても、この値で計算する
-    /// 3. 候補（経路の出発の階にある板）と画像を送り、板の ID と画像の中の枠を受け取る
-    /// 4. 枠の大きさと板の縦の長さから位置を、正面から撮ったとみなして向きを求める（SignVisionGeometry）。
+    /// 3. 候補（経路の出発の階にある板）と画像を送り、板の ID と、画像の中の枠と四隅を受け取る
+    /// 4. 板の四隅と板の大きさから、位置と向きを求める（SignVisionGeometry）。斜めから撮ってもよい。
+    ///    四隅が使えなければ、外枠から位置を求め、向きは正面から撮ったとみなす。
     ///    光線が縦の面（壁）と交われば、その面の位置と向きを使う
     /// 5. SignRouteAligner.AlignFromVision で経路を置く
     /// </summary>
@@ -64,11 +65,18 @@ namespace EkiNavi.Route
         }
 
         [Serializable]
+        class ImagePoint
+        {
+            public float x, y;
+        }
+
+        [Serializable]
         class IdentifyResponse
         {
             public string status;
             public string signId;
             public ImageBox box;
+            public ImagePoint[] corners;
             public string engine;
             public int latencyMs;
         }
@@ -251,14 +259,30 @@ namespace EkiNavi.Route
                 return;
             }
             var box = response.box;
-            if (!SignVisionGeometry.TryLocate(view, box.xMin, box.yMin, box.xMax, box.yMax, sign.heightMeters,
-                    out var position, out var normal))
+            Vector3 position;
+            Vector2 normal;
+            string source;
+            var c = response.corners;
+            if (c != null && c.Length == 4 && SignVisionGeometry.TryLocateFromCorners(view,
+                    new Vector2(c[0].x, c[0].y), new Vector2(c[1].x, c[1].y),
+                    new Vector2(c[2].x, c[2].y), new Vector2(c[3].x, c[3].y),
+                    sign.widthMeters, sign.heightMeters, out position, out normal, out var ratio, out var sideKnown))
+            {
+                // 四隅から、斜めから見ても板の向きが分かる。左右が決まらないときは正面とみなした向き
+                source = sideKnown ? $"corners, {Mathf.Acos(Mathf.Clamp01(ratio)) * Mathf.Rad2Deg:0} deg" : "corners, front";
+            }
+            else if (SignVisionGeometry.TryLocate(view, box.xMin, box.yMin, box.xMax, box.yMax, sign.heightMeters,
+                         out position, out normal))
+            {
+                // 四隅が使えないときは、正面から撮ったとみなす
+                source = "front";
+            }
+            else
             {
                 status = $"{sign.id}: box looks wrong. Try again closer";
                 return;
             }
 
-            string source = "size";
             var ray = SignVisionGeometry.RayThrough(view, (box.xMin + box.xMax) * 0.5f, (box.yMin + box.yMax) * 0.5f);
             float estimated = Vector3.Distance(view.Position, position);
             if (TryWall(ray, estimated, out var hit, out var wallNormal))
@@ -269,7 +293,11 @@ namespace EkiNavi.Route
             }
 
             aligner.AlignFromVision(sign, position, normal);
-            status = $"Aligned at {sign.id} ({source}, {Vector3.Distance(view.Position, position):0.0} m, {roundTrip} ms)";
+            float distance = Vector3.Distance(view.Position, position);
+            status = $"Aligned at {sign.id} ({source}, {distance:0.0} m, {roundTrip} ms)";
+            // 向きが確かなのは、四隅か壁の面を使えたときだけ。3m より遠いと四隅のずれに負けやすい（試算）
+            if (source == "front" || source == "corners, front" || (source.StartsWith("corners") && distance > 3.5f))
+                status += "  Direction may be off. Scan again within 3 m";
         }
 
         bool TryWall(Ray ray, float estimated, out Vector3 hit, out Vector2 normal)

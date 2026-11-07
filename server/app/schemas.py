@@ -277,11 +277,19 @@ class ImageBox(ApiModel):
     y_max: float
 
 
+class ImagePoint(ApiModel):
+    """画像の中の点。0〜1 に正規化し、左上が原点。"""
+
+    x: float
+    y: float
+
+
 class SignIdentifyResponse(ApiModel):
     """案内板を見分けた結果。
 
     status の意味:
-    - ok: signId の板が box の位置に写っている
+    - ok: signId の板が box の位置に写っている。corners は板の左上、右上、右下、左下の角
+      （答えがないか、形がおかしければ []。そのときは box だけで位置を求める）
     - not_found: 候補の板は写っていない。かざし直してもらう
     - unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）
     """
@@ -289,6 +297,7 @@ class SignIdentifyResponse(ApiModel):
     status: SignVisionStatus
     sign_id: str
     box: ImageBox
+    corners: list[ImagePoint]
     engine: Engine
     latency_ms: int
     pack_version: str

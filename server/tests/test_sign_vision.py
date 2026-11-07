@@ -84,6 +84,39 @@ def test_parse_converts_the_box_to_zero_to_one() -> None:
     assert found == SignIdentification("S-A", Box(0.2, 0.1, 0.6, 0.3))
 
 
+def test_parse_reads_the_corners() -> None:
+    found = parse_response(
+        _payload(
+            {
+                "signId": "S-A",
+                "box2d": [100, 200, 300, 600],
+                "corners": [[120, 200], [100, 600], [300, 600], [280, 200]],
+            }
+        ),
+        CANDIDATES,
+    )
+
+    assert found.corners == ((0.2, 0.12), (0.6, 0.1), (0.6, 0.3), (0.2, 0.28))
+
+
+@pytest.mark.parametrize(
+    "corners",
+    [
+        [[100, 600], [120, 200], [300, 600], [280, 200]],  # 左右が逆
+        [[120, 200], [100, 600], [300, 600]],  # 3つしかない
+        [[120, 200], [100, 600], [300, 1600], [280, 200]],  # 画像の外
+    ],
+)
+def test_parse_drops_bad_corners_but_keeps_the_box(corners: list[list[int]]) -> None:
+    found = parse_response(
+        _payload({"signId": "S-A", "box2d": [100, 200, 300, 600], "corners": corners}),
+        CANDIDATES,
+    )
+
+    assert found.box is not None
+    assert found.corners == ()
+
+
 def test_parse_returns_empty_when_no_sign_is_seen() -> None:
     found = parse_response(_payload({"signId": "none"}), CANDIDATES)
 
@@ -117,7 +150,11 @@ def test_candidates_keep_only_known_ids() -> None:
 
 def test_api_returns_the_sign_and_box() -> None:
     identifier = FakeIdentifier(
-        SignIdentification("S-B1-WEST", Box(0.1, 0.2, 0.5, 0.4))
+        SignIdentification(
+            "S-B1-WEST",
+            Box(0.1, 0.2, 0.5, 0.4),
+            ((0.1, 0.2), (0.5, 0.22), (0.5, 0.4), (0.1, 0.38)),
+        )
     )
 
     response = _client(identifier).post("/v1/sign/identify", json=_body())
@@ -127,6 +164,7 @@ def test_api_returns_the_sign_and_box() -> None:
     assert data["status"] == "ok"
     assert data["signId"] == "S-B1-WEST"
     assert data["box"] == {"xMin": 0.1, "yMin": 0.2, "xMax": 0.5, "yMax": 0.4}
+    assert data["corners"][1] == {"x": 0.5, "y": 0.22}
     assert data["engine"] == "gemini"
     assert [c.id for c in identifier.seen] == ["S-B1-WEST", "S-B1-CENTER"]
 
@@ -140,6 +178,7 @@ def test_api_reports_not_found() -> None:
     assert data["status"] == "not_found"
     assert data["signId"] == ""
     assert data["box"] == {"xMin": 0.0, "yMin": 0.0, "xMax": 0.0, "yMax": 0.0}
+    assert data["corners"] == []
 
 
 def test_api_is_unavailable_without_gemini() -> None:

@@ -467,6 +467,25 @@
         "title": "ImageBox",
         "description": "画像の中の枠。0〜1 に正規化し、左上が原点。見つからないときは全部 0。"
       },
+      "ImagePoint": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "ImagePoint",
+        "description": "画像の中の点。0〜1 に正規化し、左上が原点。"
+      },
       "LineOut": {
         "properties": {
           "id": {
@@ -805,6 +824,13 @@
           "box": {
             "$ref": "#/components/schemas/ImageBox"
           },
+          "corners": {
+            "items": {
+              "$ref": "#/components/schemas/ImagePoint"
+            },
+            "type": "array",
+            "title": "Corners"
+          },
           "engine": {
             "type": "string",
             "enum": [
@@ -828,12 +854,13 @@
           "status",
           "signId",
           "box",
+          "corners",
           "engine",
           "latencyMs",
           "packVersion"
         ],
         "title": "SignIdentifyResponse",
-        "description": "案内板を見分けた結果。\n\nstatus の意味:\n- ok: signId の板が box の位置に写っている\n- not_found: 候補の板は写っていない。かざし直してもらう\n- unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）"
+        "description": "案内板を見分けた結果。\n\nstatus の意味:\n- ok: signId の板が box の位置に写っている。corners は板の左上、右上、右下、左下の角\n  （答えがないか、形がおかしければ []。そのときは box だけで位置を求める）\n- not_found: 候補の板は写っていない。かざし直してもらう\n- unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）"
       },
       "SignOnRoute": {
         "properties": {
