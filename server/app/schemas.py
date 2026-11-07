@@ -90,6 +90,10 @@ class RouteRequest(ApiModel):
     to_gate_id: str = Field(min_length=1, max_length=MAX_ID_LENGTH)
     from_sign_id: str = Field(default="", max_length=MAX_ID_LENGTH)
     from_gate_id: str = Field(default="", max_length=MAX_ID_LENGTH)
+    same_floor: bool = Field(
+        default=False,
+        description="true なら出発の階から出ない経路だけを返す。なければ no_route",
+    )
 
 
 class RouteResponse(ApiModel):
@@ -205,11 +209,22 @@ class SiteResponse(ApiModel):
     engine: str
 
 
+class MapGate(ApiModel):
+    """地図に名前を出す改札。位置は開口の中心の平均。"""
+
+    id: str
+    name: str
+    operator: str
+    x: float
+    z: float
+
+
 class MapResponse(ApiModel):
-    """その階の通路の線。ブラウザのページだけが使う。"""
+    """その階の通路の線と改札。ブラウザのページだけが使う。"""
 
     ordinal: float
     lines: list[list[list[float]]]
+    gates: list[MapGate]
 
 
 class HealthResponse(ApiModel):

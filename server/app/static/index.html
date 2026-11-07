@@ -19,6 +19,7 @@
       <h2 id="start-heading">1. 出発の案内板</h2>
       <label for="sign">案内板</label>
       <select id="sign"></select>
+      <label class="check"><input id="same-floor" type="checkbox"> 同じ階の中だけで案内する（階段・エスカレーターを使わない）</label>
       <p class="hint">案内板の位置は現地確認前の仮データです。</p>
     </section>
 
@@ -51,6 +52,7 @@
       <h2 id="route-heading">経路</h2>
       <p id="route-summary" role="status">まだ経路を出していません。</p>
       <svg id="map" role="img" aria-label="経路の図" viewBox="0 0 100 100"></svg>
+      <p class="hint">○ 出発　● 行き先の改札　▲ 経路の近くの案内板（とがった方が板の表の向き）　灰色の線は出発の階の通路</p>
       <ol id="steps"></ol>
     </section>
 

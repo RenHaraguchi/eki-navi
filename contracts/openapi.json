@@ -440,6 +440,40 @@
         "title": "LineOut",
         "description": "路線や施設と改札の対応。confirmed は公式の構内図と照合済みかどうか。"
       },
+      "MapGate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "operator": {
+            "type": "string",
+            "title": "Operator"
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "operator",
+          "x",
+          "z"
+        ],
+        "title": "MapGate",
+        "description": "地図に名前を出す改札。位置は開口の中心の平均。"
+      },
       "MapResponse": {
         "properties": {
           "ordinal": {
@@ -458,15 +492,23 @@
             },
             "type": "array",
             "title": "Lines"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/MapGate"
+            },
+            "type": "array",
+            "title": "Gates"
           }
         },
         "type": "object",
         "required": [
           "ordinal",
-          "lines"
+          "lines",
+          "gates"
         ],
         "title": "MapResponse",
-        "description": "その階の通路の線。ブラウザのページだけが使う。"
+        "description": "その階の通路の線と改札。ブラウザのページだけが使う。"
       },
       "RouteEndpoint": {
         "properties": {
@@ -545,6 +587,12 @@
             "maxLength": 120,
             "title": "Fromgateid",
             "default": ""
+          },
+          "sameFloor": {
+            "type": "boolean",
+            "title": "Samefloor",
+            "description": "true なら出発の階から出ない経路だけを返す。なければ no_route",
+            "default": false
           }
         },
         "type": "object",

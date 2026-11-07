@@ -220,7 +220,17 @@ def _add_page_routes(app: FastAPI, station: Station, settings: Settings) -> None
     def floor_map(ordinal: float) -> schemas.MapResponse:
         if ordinal not in station.floors():
             raise StationError("unknown_floor", "その階のデータがありません")
-        return schemas.MapResponse(ordinal=ordinal, lines=station.map_lines(ordinal))
+        return schemas.MapResponse(
+            ordinal=ordinal,
+            lines=station.map_lines(ordinal),
+            gates=[schemas.MapGate(**gate) for gate in station.map_gates(ordinal)],
+        )
+
+    @app.get("/survey", include_in_schema=False)
+    def survey_page() -> FileResponse:
+        return FileResponse(
+            STATIC_DIR / "survey.html", headers={"Content-Security-Policy": PAGE_CSP}
+        )
 
 
 def _add_api_routes(
@@ -242,6 +252,7 @@ def _add_api_routes(
             body.to_gate_id,
             from_sign_id=body.from_sign_id,
             from_gate_id=body.from_gate_id,
+            same_floor=body.same_floor,
         )
         return _route_response(station, plan)
 
