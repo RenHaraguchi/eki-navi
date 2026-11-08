@@ -44,7 +44,7 @@ namespace EkiNavi.Route
 
         Screen screen = Screen.Setup;
         string language = "ja";
-        int stationIndex;
+        int stationIndex = -1;  // 入力した駅名が見つかるまでは -1
         int destinationIndex;
         Font font;
         Sprite rounded, circle;
@@ -63,7 +63,12 @@ namespace EkiNavi.Route
 
         static readonly string[] Languages = { "ja", "en", "zh", "ko" };
         static readonly string[] LanguageLabels = { "日本語", "English", "中文", "한국어" };
-        static readonly (string ja, string en, bool ready)[] Stations = { ("新宿", "Shinjuku", true), ("東京", "Tokyo", false) };
+        // 駅の候補。読み（ひらがな・カタカナ）と英語でも見つかるようにする
+        static readonly (string ja, string en, bool ready, string[] aliases)[] Stations =
+        {
+            ("新宿", "Shinjuku", true, new[] { "新宿", "しんじゅく", "シンジュク", "shinjuku" }),
+            ("東京", "Tokyo", false, new[] { "東京", "とうきょう", "トウキョウ", "tokyo" }),
+        };
         static readonly (string ja, string en, string color)[] Destinations =
         {
             ("小田急線", "Odakyu Line", "#2288CC"),
@@ -79,6 +84,9 @@ namespace EkiNavi.Route
             ["tagline"] = ("駅の中の乗り換えを、カメラで案内します", "Camera guidance for transfers inside the station"),
             ["language"] = ("1. 言語", "1. Language"),
             ["station"] = ("2. 駅", "2. Station"),
+            ["stationPlaceholder"] = ("駅名を入力（例: 新宿）", "Enter a station (e.g. Shinjuku)"),
+            ["stationNotFound"] = ("この駅はまだ案内できません", "This station is not supported yet"),
+            ["stationSelected"] = ("{0}駅を選びました", "Selected {0} Station"),
             ["destination"] = ("3. 乗り換える路線", "3. Line to transfer to"),
             ["soon"] = ("準備中", "Coming soon"),
             ["start"] = ("案内を始める", "Start"),
@@ -215,7 +223,7 @@ namespace EkiNavi.Route
         {
             screen = next;
             foreach (var pair in screens) pair.Value.SetActive(pair.Key == next);
-            foreach (var refresh in refreshers) refresh();
+            Refresh();
         }
 
         // ---- 画面を組み立てる ----
@@ -271,36 +279,52 @@ namespace EkiNavi.Route
                 var chip = Choice(chips.transform, LanguageLabels[i], 34, () =>
                 {
                     language = Languages[index];
-                    foreach (var refresh in refreshers) refresh();
+                    Refresh();
                 });
                 refreshers.Add(() => Highlight(chip, language == Languages[index]));
             }
 
             SectionTitle(body.transform, "station");
-            var stationRow = Row(body.transform, 130, 16);
+            var field = StationField(body.transform);
+            var placeholder = (Text)field.placeholder;
+
+            // 入力の途中（「しん」「shin」など）で出す候補。押すとその駅に決まる
+            var suggestions = Row(body.transform, 110, 16);
+            var suggestionButtons = new List<Button>();
             for (int i = 0; i < Stations.Length; i++)
             {
                 int index = i;
-                var card = Choice(stationRow.transform, "", 40, () => { if (Stations[index].ready) stationIndex = index; });
-                var label = card.GetComponentInChildren<Text>();
-                refreshers.Add(() =>
+                var card = Choice(suggestions.transform, "", 36, () =>
                 {
-                    var s = Stations[index];
-                    label.text = (language == "ja" ? s.ja : s.en) + (s.ready ? "" : $"\n<size=26>{T("soon")}</size>");
-                    card.interactable = s.ready;
-                    Highlight(card, stationIndex == index);
+                    if (!Stations[index].ready) return;
+                    field.SetTextWithoutNotify(language == "ja" ? Stations[index].ja : Stations[index].en);
+                    stationIndex = index;
+                    Refresh();
                 });
+                suggestionButtons.Add(card);
             }
+            var stationNote = Label(body.transform, "", 30, SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
+            stationNote.rectTransform.sizeDelta = new Vector2(0, 50);
 
-            SectionTitle(body.transform, "destination");
+            field.onValueChanged.AddListener(text =>
+            {
+                // 読みや英語がぴったり合えば、その場で駅を決める（準備中の駅は決めない）
+                int exact = FindStation(text, exactOnly: true);
+                stationIndex = exact >= 0 && Stations[exact].ready ? exact : -1;
+                Refresh();
+            });
+
+            // 乗り換える路線は、駅が決まってから出す
+            var destinationParts = new List<GameObject> { SectionTitle(body.transform, "destination") };
             for (int i = 0; i < Destinations.Length; i++)
             {
                 int index = i;
-                var item = Choice(body.transform, "", 40, () => destinationIndex = index, 120, TextAnchor.MiddleLeft);
+                var item = Choice(body.transform, "", 40, () => { destinationIndex = index; Refresh(); }, 120, TextAnchor.MiddleLeft);
                 var label = item.GetComponentInChildren<Text>();
                 label.rectTransform.offsetMin = new Vector2(110, 16);
                 var badge = Panel(item.transform, "LineColor", Hex(Destinations[i].color), circle);
                 Anchor(badge, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(36, -26), new Vector2(88, 26));
+                destinationParts.Add(item.gameObject);
                 refreshers.Add(() =>
                 {
                     label.text = language == "ja" ? Destinations[index].ja : Destinations[index].en;
@@ -308,9 +332,42 @@ namespace EkiNavi.Route
                 });
             }
 
-            var start = PrimaryButton(page.transform, () => Show(Screen.Scan));
+            refreshers.Add(() =>
+            {
+                placeholder.text = T("stationPlaceholder");
+                string text = field.text;
+                bool chosen = stationIndex >= 0;
+                bool any = false;
+                for (int i = 0; i < Stations.Length; i++)
+                {
+                    var st = Stations[i];
+                    // 決まっていないときだけ、入力の途中に合う駅を候補として出す
+                    bool show = !chosen && !string.IsNullOrWhiteSpace(text) && MatchesStation(i, text, exactOnly: false);
+                    suggestionButtons[i].gameObject.SetActive(show);
+                    any |= show;
+                    suggestionButtons[i].interactable = st.ready;
+                    suggestionButtons[i].GetComponentInChildren<Text>().text =
+                        (language == "ja" ? st.ja : st.en) + (st.ready ? "" : $"<size=26>（{T("soon")}）</size>");
+                    Highlight(suggestionButtons[i], false);
+                }
+                suggestions.SetActive(any);
+                if (chosen)
+                    stationNote.text = string.Format(T("stationSelected"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en);
+                else if (!string.IsNullOrWhiteSpace(text) && !any)
+                    stationNote.text = T("stationNotFound");
+                else
+                    stationNote.text = "";
+                stationNote.color = chosen ? Success : SubInk;
+                foreach (var part in destinationParts) part.SetActive(chosen);
+            });
+
+            var start = PrimaryButton(page.transform, () => { if (stationIndex >= 0) Show(Screen.Scan); });
             Anchor(start.gameObject, new Vector2(0, 0), new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
-            refreshers.Add(() => start.GetComponentInChildren<Text>().text = T("start"));
+            refreshers.Add(() =>
+            {
+                start.GetComponentInChildren<Text>().text = T("start");
+                start.interactable = stationIndex >= 0;  // 駅が決まるまでは押せない
+            });
             return page;
         }
 
@@ -425,11 +482,77 @@ namespace EkiNavi.Route
 
         // ---- 部品 ----
 
-        void SectionTitle(Transform parent, string key)
+        GameObject SectionTitle(Transform parent, string key)
         {
             var label = Label(parent, "", 34, SubInk, FontStyle.Bold, TextAnchor.LowerLeft);
             label.rectTransform.sizeDelta = new Vector2(0, 70);
             refreshers.Add(() => label.text = T(key));
+            return label.gameObject;
+        }
+
+        /// <summary>駅名を打つ欄。端末のキーボード（日本語の入力も）で打てる。</summary>
+        InputField StationField(Transform parent)
+        {
+            var go = Panel(parent, "StationField", Color.white, rounded);
+            go.GetComponent<Image>().raycastTarget = true;  // たたいてキーボードを出す
+            ((RectTransform)go.transform).sizeDelta = new Vector2(0, 120);
+            var outline = go.AddComponent<Outline>();
+            outline.effectDistance = new Vector2(3, -3);
+            outline.effectColor = Line;
+            var text = Label(go.transform, "", 42, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            text.supportRichText = false;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Stretch(text.gameObject);
+            text.rectTransform.offsetMin = new Vector2(40, 10);
+            text.rectTransform.offsetMax = new Vector2(-40, -10);
+            var placeholder = Label(go.transform, "", 38, SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
+            Stretch(placeholder.gameObject);
+            placeholder.rectTransform.offsetMin = new Vector2(40, 10);
+            placeholder.rectTransform.offsetMax = new Vector2(-40, -10);
+            var field = go.AddComponent<InputField>();
+            field.textComponent = text;
+            field.placeholder = placeholder;
+            field.lineType = InputField.LineType.SingleLine;
+            field.characterLimit = 20;
+            field.caretColor = Navy;
+            field.caretWidth = 3;
+            field.selectionColor = new Color(0.2f, 0.38f, 0.98f, 0.3f);
+            return field;
+        }
+
+        /// <summary>入力した駅名に合う駅の番号。exactOnly が false なら、打ちかけ（先頭が合う）でもよい。</summary>
+        static int FindStation(string text, bool exactOnly)
+        {
+            for (int i = 0; i < Stations.Length; i++)
+                if (MatchesStation(i, text, exactOnly)) return i;
+            return -1;
+        }
+
+        static bool MatchesStation(int index, string text, bool exactOnly)
+        {
+            string query = NormalizeStation(text);
+            if (query.Length == 0) return false;
+            foreach (var alias in Stations[index].aliases)
+            {
+                string a = NormalizeStation(alias);
+                if (a == query || (!exactOnly && a.StartsWith(query, StringComparison.Ordinal))) return true;
+            }
+            return false;
+        }
+
+        /// <summary>空白と「駅」「station」を除き、英字は小文字にそろえる。</summary>
+        static string NormalizeStation(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            string s = text.Trim().ToLowerInvariant().Replace(" ", "").Replace("\u3000", "");
+            if (s.EndsWith("station", StringComparison.Ordinal)) s = s.Substring(0, s.Length - "station".Length);
+            if (s.EndsWith("駅", StringComparison.Ordinal)) s = s.Substring(0, s.Length - 1);
+            return s;
+        }
+
+        void Refresh()
+        {
+            foreach (var refresh in refreshers) refresh();
         }
 
         GameObject Row(Transform parent, float height, float spacing)
@@ -503,6 +626,8 @@ namespace EkiNavi.Route
         Button Button(Transform parent, Color color, Sprite sprite, Action onClick)
         {
             var go = Panel(parent, "Button", color, sprite);
+            // Panel は飾りとしてタップを通すので、ボタンだけはタップを受ける
+            go.GetComponent<Image>().raycastTarget = true;
             var button = go.AddComponent<Button>();
             var colors = button.colors;
             colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
