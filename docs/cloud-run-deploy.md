@@ -37,6 +37,14 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> \
     --role="roles/aiplatform.user"
 ```
 
+新しく作ったプロジェクトでは、同じアカウントにビルドの権限がなく、手順 4 のビルドが権限不足で失敗します。先に付けておきます。
+
+```
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/cloudbuild.builds.builder"
+```
+
 ## 4. 出す
 
 リポジトリの `server` フォルダで実行します。`Dockerfile` でイメージを作り、経路パック（`station_data/pack.json`）を焼き込みます。初回は 5〜10 分ほどかかります。
@@ -55,10 +63,12 @@ gcloud run deploy eki-navi --source . --region asia-northeast1 \
 ## 5. 動いているか確かめる
 
 ```
-curl https://<サービスの URL>/healthz
+curl -s -o /dev/null -w '%{http_code}\n' https://<サービスの URL>/
 ```
 
-`{"status":"ok","packVersion":"..."}` が返れば起動しています。ブラウザで `https://<サービスの URL>/` を開くと、経路と行き先の判定を試せるページが出ます。
+`200` が返れば起動しています。ブラウザで `https://<サービスの URL>/` を開くと、経路と行き先の判定を試せるページが出ます。
+
+`/healthz` は使えません。Cloud Run は `z` で終わる一部のパスを予約していて、アプリに届く前に Google の入口が 404 を返します。
 
 案内板の判定は看板の写真を送って確かめます（Mac の例。`photo.jpg` は看板の写真）。
 
@@ -72,6 +82,12 @@ base64 -i photo.jpg | tr -d '\n' \
 - `"status":"not_found"` は、写真の看板が候補にないか、文字が読めなかったときです。`readText` に Gemini が読んだ文字が入っています
 - `"status":"unavailable"` は、Gemini を呼べなかったときです。下の「うまくいかないとき」を見てください
 
+## 予算アラートを付ける
+
+アラートは通知だけで、自動では止まりませんが、思わぬ利用に気づけます。Cloud コンソールの「お支払い」→「予算とアラート」→「予算を作成」で、対象をこのプロジェクトにして、金額（例: 3,000 円）と通知のしきい値（50%、90%、100% など）を決めます。
+
+URL を知っている人は誰でも案内板の判定（Gemini）を呼べるので、URL は GitHub やリポジトリに書かず、チームの中だけで共有してください。
+
 ## 6. アプリをサーバーの URL につないでビルドする
 
 環境変数 `EKINAVI_SERVER_URL` にサービスの URL を入れてから、案内板の経路デモのシーンを作ると、「Scan sign」の送り先にその URL が入ります。
@@ -83,7 +99,7 @@ EKINAVI_SERVER_URL=https://<サービスの URL> \
   /Applications/Unity/Hub/Editor/6000.3.28f1/Unity.app/Contents/MacOS/Unity -projectPath .
 ```
 
-メニュー「EkiNavi > 案内板の経路デモのシーンを作る」を実行してからビルドします。シーンを作ったあとに、Route の `SignVisionAligner` の Server Url に URL が入っていることを確かめてください。環境変数を使わずに、ここへ直接 URL を入れても構いません（シーンを作り直すと空に戻ります）。
+メニュー「EkiNavi > 案内板の経路デモのシーンを作る」を実行してからビルドします。作ったシーン（`SignRouteDemo.unity`）には URL が書き込まれるので、コミットしないでください。シーンを作ったあとに、Route の `SignVisionAligner` の Server Url に URL が入っていることを確かめてください。環境変数を使わずに、ここへ直接 URL を入れても構いません（シーンを作り直すと空に戻ります）。
 
 コマンド 1 つで APK まで作るときは、次のようにします。
 
