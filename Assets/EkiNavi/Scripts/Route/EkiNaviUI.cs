@@ -177,8 +177,6 @@ namespace EkiNavi.Route
             }
 
             guideDestination.text = string.Format(T("destinationLabel"), Goal);
-            float total = Mathf.Max(1f, arrow.TotalMeters);
-            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - arrow.RemainingMeters / total), 1f);
 
             if (!arrow.IsGuiding)
             {
@@ -196,6 +194,9 @@ namespace EkiNavi.Route
                 guideSub.text = string.Format(T("offRouteSub"), Mathf.RoundToInt(arrow.OffRouteMeters));
                 return;
             }
+            // 進み具合は、案内できている間だけ更新する（見失っている間は直前のまま）
+            float total = Mathf.Max(1f, arrow.TotalMeters);
+            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - arrow.RemainingMeters / total), 1f);
             guideCardImage.color = Navy;
             if (arrow.HasNextTurn && arrow.NextTurnMeters < 60f)
             {
