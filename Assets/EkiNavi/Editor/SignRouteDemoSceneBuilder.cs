@@ -100,6 +100,12 @@ namespace EkiNavi.EditorTools
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // 確認用: 歩数の数え方と、ジャイロで取る向きを端末で確かめる画面（確認が済んだら外してよい）
+            var diagnostics = routeGo.AddComponent<SensorDiagnostics>();
+            so = new SerializedObject(diagnostics);
+            so.FindProperty("cameraTransform").objectReferenceValue = origin.Camera.transform;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
             // ARCore は既定で 640×480 を選ぶことがあるので、起動したら大きい解像度に切り替える
             if (!origin.Camera.TryGetComponent<CameraResolutionSelector>(out _))
                 origin.Camera.gameObject.AddComponent<CameraResolutionSelector>();
