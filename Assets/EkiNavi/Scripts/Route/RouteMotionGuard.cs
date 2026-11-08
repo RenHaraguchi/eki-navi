@@ -27,6 +27,10 @@ namespace EkiNavi.Route
         GUIStyle style;
 
         public bool IsStill => guard != null && guard.IsStill;
+        /// <summary>合わせてから数えた歩数（DeadReckoningTracker が使う）。</summary>
+        public int Steps => guard != null ? guard.Steps : 0;
+        /// <summary>歩幅（m）。</summary>
+        public float StrideMeters => settings.strideMeters;
         public bool DriftSuspected => guard != null && guard.DriftSuspected(Time.time);
 
         void Awake()

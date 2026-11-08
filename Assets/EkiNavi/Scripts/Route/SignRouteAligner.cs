@@ -34,6 +34,8 @@ namespace EkiNavi.Route
         [SerializeField] float eyeHeight = 1.4f;
         [Tooltip("AR の追跡がこの秒数続けて止まったら線を消す")]
         [SerializeField] float hideAfterTrackingLostSeconds = 1f;
+        [Tooltip("オンなら、AR の追跡が止まっても線を消さない。DeadReckoningTracker で位置を進めるときに使う")]
+        [SerializeField] bool keepRouteWhenTrackingLost = false;
         [SerializeField] float arrivalRadius = 5f;
 
         [Header("開発用")]
@@ -139,6 +141,7 @@ namespace EkiNavi.Route
                 return;
             }
             if (trackingLostSince < 0f) trackingLostSince = Time.time;
+            if (keepRouteWhenTrackingLost) return;
             if (state == State.Aligned && Time.time - trackingLostSince >= hideAfterTrackingLostSeconds)
                 LoseAlignment("Tracking lost. Point the camera at a sign again");
         }
@@ -264,6 +267,7 @@ namespace EkiNavi.Route
             route.transform.SetPositionAndRotation(pose.position, pose.rotation);
             route.SetVisible(true);
             if (TryGetComponent<RouteMotionGuard>(out var guard)) guard.OnAligned();
+            if (TryGetComponent<DeadReckoningTracker>(out var tracker)) tracker.OnAligned();
 
             state = State.Aligned;
             Arrived = false;

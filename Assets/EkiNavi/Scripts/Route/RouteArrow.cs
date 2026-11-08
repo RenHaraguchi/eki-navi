@@ -45,6 +45,7 @@ namespace EkiNavi.Route
 
         RouteRenderer route;
         RouteMotionGuard motionGuard;
+        DeadReckoningTracker tracker;
         RoutePath path;
         GameObject arrow;
         float currentYaw;
@@ -56,6 +57,7 @@ namespace EkiNavi.Route
         {
             route = GetComponent<RouteRenderer>();
             motionGuard = GetComponent<RouteMotionGuard>();
+            tracker = GetComponent<DeadReckoningTracker>();
         }
 
         void Start()
@@ -84,9 +86,19 @@ namespace EkiNavi.Route
                 return;
             }
 
-            // 経路の座標（RouteRenderer の中の座標）で、いまの位置と指す先を求める
-            var local = route.transform.InverseTransformPoint(cameraTransform.position);
-            var position = new Vector2(local.x, local.z);
+            // 経路の座標（RouteRenderer の中の座標）で、いまの位置と指す先を求める。
+            // 推測航法が使えるときは、ジャイロと歩数で進めた位置を使う（ARCore が見失っても崩れない）
+            bool reckoning = tracker != null && tracker.Active;
+            Vector2 position;
+            if (reckoning)
+            {
+                position = tracker.LocalPosition;
+            }
+            else
+            {
+                var local = route.transform.InverseTransformPoint(cameraTransform.position);
+                position = new Vector2(local.x, local.z);
+            }
             var target = path.GuideTarget(position, lookahead, offRouteDistance, out var projection);
             float remaining = path.Length - projection.Along;
 
@@ -99,11 +111,20 @@ namespace EkiNavi.Route
 
             var toTarget = target - position;
             if (toTarget.sqrMagnitude < 1e-4f) toTarget = path.PointAt(projection.Along + lookahead + 1f) - position;
-            var worldDir = route.transform.TransformDirection(new Vector3(toTarget.x, 0f, toTarget.y));
-            worldDir.y = 0f;
-            if (worldDir.sqrMagnitude < 1e-6f) return;
-
-            float yaw = Mathf.Atan2(worldDir.x, worldDir.z) * Mathf.Rad2Deg;
+            float yaw;
+            if (reckoning)
+            {
+                // 経路の座標での向きと、今のスマホの向きの差を、カメラの向きに足す
+                if (toTarget.sqrMagnitude < 1e-6f) return;
+                yaw = tracker.ArrowWorldYaw(Azimuth.Of(toTarget));
+            }
+            else
+            {
+                var worldDir = route.transform.TransformDirection(new Vector3(toTarget.x, 0f, toTarget.y));
+                worldDir.y = 0f;
+                if (worldDir.sqrMagnitude < 1e-6f) return;
+                yaw = Mathf.Atan2(worldDir.x, worldDir.z) * Mathf.Rad2Deg;
+            }
             currentYaw = hasYaw ? Mathf.LerpAngle(currentYaw, yaw, 1f - Mathf.Exp(-turnSpeed * Time.deltaTime)) : yaw;
             hasYaw = true;
 

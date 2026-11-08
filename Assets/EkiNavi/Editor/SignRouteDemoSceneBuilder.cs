@@ -100,6 +100,15 @@ namespace EkiNavi.EditorTools
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // 歩いている間の位置は、ジャイロと歩数で進める（ARCore が地下で位置を見失いやすいため）
+            var tracker = routeGo.AddComponent<DeadReckoningTracker>();
+            so = new SerializedObject(tracker);
+            so.FindProperty("cameraTransform").objectReferenceValue = origin.Camera.transform;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            so = new SerializedObject(aligner);
+            so.FindProperty("keepRouteWhenTrackingLost").boolValue = true;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
             // 確認用: 歩数の数え方と、ジャイロで取る向きを端末で確かめる画面（確認が済んだら外してよい）
             var diagnostics = routeGo.AddComponent<SensorDiagnostics>();
             so = new SerializedObject(diagnostics);
