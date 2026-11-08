@@ -40,6 +40,9 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 MIN_PRECISION = 0.75
 MIN_RECALL = 0.5
 ARROWS = "←↑→↓↗↖↘↙"
+# 2026-11-08 の試験では、初期設定の 11〜19 秒に対して 6.5〜10.6 秒だった。
+# 完全に切る設定（thinkingBudget 0）は gemini-3.5-flash-lite では受け付けられなかった
+THINKING_LEVEL = "low"
 # 曲がる向きを示す矢印は、行き先の向きの矢印として扱う（↰ は左、↱ は右）
 ARROW_ALIASES = str.maketrans({"↰": "←", "↲": "←", "↱": "→", "↳": "→"})
 
@@ -197,6 +200,9 @@ def build_request_body(image: bytes, mime_type: str) -> dict[str, object]:
         ],
         "generationConfig": {
             "temperature": 0,
+            # 考える処理を少なめにして、待ち時間を減らす
+            # （文字を読むだけなので多くは要らない）
+            "thinkingConfig": {"thinkingLevel": THINKING_LEVEL},
             "responseMimeType": "application/json",
             "responseSchema": {
                 "type": "OBJECT",

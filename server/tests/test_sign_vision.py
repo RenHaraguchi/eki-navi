@@ -118,6 +118,8 @@ def test_request_does_not_show_the_candidates() -> None:
     assert "小田急線" not in instruction
     schema = body["generationConfig"]["responseSchema"]  # type: ignore[index]
     assert schema["required"] == ["readText"]
+    config = body["generationConfig"]  # type: ignore[index]
+    assert config["thinkingConfig"] == {"thinkingLevel": "low"}
     image = body["contents"][0]["parts"][0]["inlineData"]  # type: ignore[index]
     assert base64.b64decode(image["data"]) == JPEG
 
