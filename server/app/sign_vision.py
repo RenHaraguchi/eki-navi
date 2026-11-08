@@ -11,6 +11,8 @@ Gemini には候補を見せない。候補の説明を見せると、遠くて�
 （Gemini が英語の部分を読んだり読まなかったりするため）。読んだ文字のうち板の文字に
 含まれる割合（適合率）と、板の文字のうち読めた割合（再現率）の両方が下限を超えたら、その板とみなす。
 同じ路線名を多く含む大きな別の板は、再現率は高くても適合率が低い。
+書いてある路線名がほぼ同じで矢印の向きだけが違う板（2026-11-08 の地下1階で3枚）は、
+先頭の矢印の向きが合わなければ別の板とみなす。
 """
 
 from __future__ import annotations
@@ -38,6 +40,8 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 MIN_PRECISION = 0.75
 MIN_RECALL = 0.5
 ARROWS = "←↑→↓↗↖↘↙"
+# 曲がる向きを示す矢印は、行き先の向きの矢印として扱う（↰ は左、↱ は右）
+ARROW_ALIASES = str.maketrans({"↰": "←", "↲": "←", "↱": "→", "↳": "→"})
 
 INSTRUCTION = """カメラの画像に写っている、駅の案内板の文字を読み取ってください。
 - 画像の中でいちばん大きく写っている案内板を1枚選びます
@@ -215,7 +219,7 @@ def _normalize(text: str, japanese_only: bool = True) -> str:
 
     japanese_only なら英数字（ASCII）も外す。
     """
-    text = unicodedata.normalize("NFKC", text)
+    text = unicodedata.normalize("NFKC", text).translate(ARROW_ALIASES)
     text = re.sub(r"[（(][^）)]*[）)]", "", text)
     return "".join(
         c
@@ -258,30 +262,48 @@ def text_match_score(read_text: str, sign_text: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def first_arrow(text: str) -> str:
+    """文字の中で最初に出てくる矢印。なければ空。"""
+    for c in unicodedata.normalize("NFKC", text).translate(ARROW_ALIASES):
+        if c in ARROWS:
+            return c
+    return ""
+
+
 def is_match(read_text: str, sign_text: str) -> bool:
-    """読んだ文字が、その板の文字とみなせるか（適合率と再現率がどちらも下限以上）。"""
+    """読んだ文字が、その板の文字とみなせるか。
+
+    適合率と再現率がどちらも下限以上で、先頭の矢印の向きが合うこと
+    （どちらかに矢印がなければ、矢印は比べない）。
+    """
     precision, recall = text_overlap(read_text, sign_text)
-    return precision >= MIN_PRECISION and recall >= MIN_RECALL
+    if precision < MIN_PRECISION or recall < MIN_RECALL:
+        return False
+    read_arrow, sign_arrow = first_arrow(read_text), first_arrow(sign_text)
+    return not read_arrow or not sign_arrow or read_arrow == sign_arrow
 
 
 def best_match(
     read_text: str, candidates: tuple[SignCandidate, ...]
 ) -> tuple[str, float]:
-    """読んだ文字にいちばん近い候補と、その F 値。text のない候補は比べない。
+    """is_match を満たす候補のうち、いちばん近いものと、その F 値。
+
+    text のない候補は比べない。
 
     Args:
         read_text: Gemini が読んだ文字。
         candidates: 候補の案内板。
 
     Returns:
-        (候補の ID, F 値)。比べられる候補がなければ ("", 0)。
+        (候補の ID, F 値)。満たす候補がなければ ("", いちばん高かった F 値)。
     """
-    best_id, best_score = "", 0.0
+    best_id, best_score, top_score = "", 0.0, 0.0
     for candidate in candidates:
         score = text_match_score(read_text, candidate.text)
-        if score > best_score:
+        top_score = max(top_score, score)
+        if score > best_score and is_match(read_text, candidate.text):
             best_id, best_score = candidate.id, score
-    return best_id, best_score
+    return (best_id, best_score) if best_id else ("", top_score)
 
 
 def _box_of(values: object) -> Box:
@@ -331,7 +353,7 @@ def parse_response(
         candidates: 候補の案内板。
 
     Returns:
-        見分けた結果。いちばん近い候補でも is_match を満たさなければ sign_id は空。
+        見分けた結果。is_match を満たす候補がなければ sign_id は空。
 
     Raises:
         SignVisionError: 形が違うとき、板が見つかったのに枠がおかしいとき。
@@ -349,8 +371,7 @@ def parse_response(
         score,
         read_text,
     )
-    candidate_text = next((c.text for c in candidates if c.id == sign_id), "")
-    if not sign_id or not is_match(read_text, candidate_text):
+    if not sign_id:
         return SignIdentification("", None, (), read_text, score)
     return SignIdentification(
         sign_id,

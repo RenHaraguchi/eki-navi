@@ -22,6 +22,7 @@ from app.sign_vision import (
     best_match,
     build_request_body,
     candidates_of,
+    first_arrow,
     is_match,
     parse_response,
     text_match_score,
@@ -139,6 +140,38 @@ def test_score_ignores_width_spaces_and_the_appearance_note() -> None:
     assert text_match_score("ABC Line", "abc line"), "日本語のない板は英字で比べる"
     assert text_match_score("", SIGN_A) == 0.0
     assert text_match_score("京王線", "") == 0.0
+
+
+SIGNS_SAME_BUT_ARROW = (
+    SignCandidate(
+        "S-UP", "上", "↑ 京王線｜京王新線通路｜都営新宿線｜大江戸線新宿駅｜南口"
+    ),
+    SignCandidate(
+        "S-LEFT", "左", "← 京王線｜↰ 京王新線通路｜都営新宿線｜大江戸線新宿駅｜南口"
+    ),
+    SignCandidate(
+        "S-RIGHT", "右", "→ 京王線｜京王新線通路｜都営新宿線｜大江戸線新宿駅｜南口"
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("read_text", "expected"),
+    [
+        ("↑ 京王線 京王新線通路 都営新宿線 大江戸線新宿駅 南口", "S-UP"),
+        ("←京王線 京王新線通路 都営新宿線 大江戸線新宿駅 南口", "S-LEFT"),
+        ("→ 京王線 Keio Line 京王新線通路 都営新宿線 大江戸線新宿駅 南口", "S-RIGHT"),
+        ("↓ 京王線 京王新線通路 都営新宿線 大江戸線新宿駅 南口", ""),
+    ],
+)
+def test_signs_that_differ_only_by_the_arrow(read_text: str, expected: str) -> None:
+    assert best_match(read_text, SIGNS_SAME_BUT_ARROW)[0] == expected
+
+
+def test_turn_arrows_count_as_their_direction() -> None:
+    assert first_arrow("↰ 京王新線通路") == "←"
+    assert first_arrow("京王線 ↱") == "→"
+    assert first_arrow("京王線") == ""
 
 
 def test_best_match_skips_candidates_without_text() -> None:
