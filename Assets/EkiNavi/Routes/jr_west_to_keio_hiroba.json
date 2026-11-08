@@ -17,7 +17,7 @@
     "operator": "京王",
     "floor": "B1"
   },
-  "lengthMeters": 138.0,
+  "lengthMeters": 149.7,
   "points": [
     {
       "x": 0.814,
@@ -30,33 +30,18 @@
       "ordinal": -1.0
     },
     {
-      "x": -40.832,
-      "z": 148.749,
+      "x": -75.933,
+      "z": 155.233,
       "ordinal": -1.0
     },
     {
-      "x": -47.556,
-      "z": 117.239,
+      "x": -81.667,
+      "z": 124.833,
       "ordinal": -1.0
     },
     {
-      "x": -65.764,
-      "z": 120.462,
-      "ordinal": -1.0
-    },
-    {
-      "x": -70.81,
-      "z": 117.365,
-      "ordinal": -1.0
-    },
-    {
-      "x": -80.361,
-      "z": 115.714,
-      "ordinal": -1.0
-    },
-    {
-      "x": -81.756,
-      "z": 102.211,
+      "x": -84.6,
+      "z": 100.833,
       "ordinal": -1.0
     },
     {
@@ -66,44 +51,6 @@
     }
   ],
   "verticalMoves": [],
-  "turns": [
-    {
-      "pointIndex": 1,
-      "direction": "left",
-      "angleDeg": 73.0,
-      "distanceFromStart": 10.8
-    },
-    {
-      "pointIndex": 2,
-      "direction": "left",
-      "angleDeg": 87.1,
-      "distanceFromStart": 51.4
-    },
-    {
-      "pointIndex": 3,
-      "direction": "right",
-      "angleDeg": 88.0,
-      "distanceFromStart": 83.7
-    },
-    {
-      "pointIndex": 4,
-      "direction": "left",
-      "angleDeg": 41.6,
-      "distanceFromStart": 102.1
-    },
-    {
-      "pointIndex": 6,
-      "direction": "left",
-      "angleDeg": 74.3,
-      "distanceFromStart": 117.8
-    },
-    {
-      "pointIndex": 7,
-      "direction": "left",
-      "angleDeg": 109.4,
-      "distanceFromStart": 131.3
-    }
-  ],
   "goalLine": {
     "ax": -76.001,
     "az": 105.467,
@@ -111,12 +58,6 @@
     "bz": 101.933
   },
   "startOffsetMeters": 0.0,
-  "signsOnRoute": [
-    {
-      "signId": "S-B1-WEST",
-      "alongMeters": 2.2,
-      "offsetMeters": 19.7
-    }
-  ],
-  "source": "network"
+  "source": "walked",
+  "note": "2026-11-08 に現地で歩いた道（経路.png の赤い線）に合わせて手で直した。看板 A（S-B1-H02）の下を通り、西北西へ進んでから南へ下りる"
 }
