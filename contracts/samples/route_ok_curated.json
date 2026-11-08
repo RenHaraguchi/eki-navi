@@ -58,6 +58,16 @@
       "offsetMeters": 4.6
     },
     {
+      "signId": "S-B1-H02-A",
+      "alongMeters": 0.0,
+      "offsetMeters": 22.0
+    },
+    {
+      "signId": "S-B1-H02-B",
+      "alongMeters": 0.0,
+      "offsetMeters": 22.0
+    },
+    {
       "signId": "S-B1-CENTER",
       "alongMeters": 20.6,
       "offsetMeters": 4.4
@@ -69,5 +79,5 @@
     }
   ],
   "source": "curated",
-  "packVersion": "27d60a02"
+  "packVersion": "794c0ab5"
 }

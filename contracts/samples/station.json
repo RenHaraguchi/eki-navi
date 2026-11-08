@@ -1,5 +1,5 @@
 {
-  "packVersion": "27d60a02",
+  "packVersion": "794c0ab5",
   "origin": {
     "lat": 35.69,
     "lon": 139.7
@@ -291,6 +291,57 @@
       "correctionX": 0.0,
       "correctionZ": 0.0,
       "confidence": "仮"
+    },
+    {
+      "id": "S-B1-H02-A",
+      "name": "JR西改札前（表）",
+      "imageName": "sign_b1_h02_a",
+      "x": -1.0,
+      "z": 142.3,
+      "ordinal": -1.0,
+      "azimuthDeg": 170.1,
+      "widthMeters": 3.0,
+      "heightMeters": 0.3,
+      "centerHeightMeters": 2.7,
+      "mount": "hanging",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "推定"
+    },
+    {
+      "id": "S-B1-H02-B",
+      "name": "JR西改札前（裏）",
+      "imageName": "sign_b1_h02_b",
+      "x": -1.0,
+      "z": 142.3,
+      "ordinal": -1.0,
+      "azimuthDeg": 350.1,
+      "widthMeters": 3.0,
+      "heightMeters": 0.3,
+      "centerHeightMeters": 2.7,
+      "mount": "hanging",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "推定"
+    },
+    {
+      "id": "S-B1-H03",
+      "name": "JR西改札から京王広場口に行く道の途中（壁の掲示「→ 京王線」）",
+      "imageName": "sign_b1_h03",
+      "x": -78.1,
+      "z": 127.3,
+      "ordinal": -1.0,
+      "azimuthDeg": 289.2,
+      "widthMeters": 1.4,
+      "heightMeters": 1.8,
+      "centerHeightMeters": 1.6,
+      "mount": "wall",
+      "correctionYawDeg": 0.0,
+      "correctionX": 0.0,
+      "correctionZ": 0.0,
+      "confidence": "推定"
     }
   ],
   "lines": [
