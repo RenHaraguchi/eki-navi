@@ -95,6 +95,9 @@ namespace EkiNavi.Route
 
         void Awake()
         {
+            // 歩いている間は画面に触らないので、端末の自動消灯で画面が消えると、カメラと追跡が止まって
+            // 経路が消える（2026-11-08 の現地検証で確認）。案内している間は画面を消さない
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
             aligner = GetComponent<SignRouteAligner>();
             route = GetComponent<RouteRenderer>();
             if (arCamera == null) arCamera = Camera.main;
