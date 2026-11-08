@@ -4,7 +4,12 @@
 // 座標は app.js と同じく x = 東、z = 北（メートル）。SVG は下向きが正なので y = -z で描く。
 const $ = (id) => document.getElementById(id);
 const SVG_NS = "http://www.w3.org/2000/svg";
-const FLOOR = { ordinal: 2, label: "2階", code: "2F" };
+// 階は URL の ?floor= で選ぶ（例: survey?floor=B1）。指定がなければ 2階
+const FLOORS = {
+  "2F": { ordinal: 2, label: "2階", code: "2F" },
+  B1: { ordinal: -1, label: "地下1階", code: "B1" },
+};
+const FLOOR = FLOORS[new URLSearchParams(location.search).get("floor")] || FLOORS["2F"];
 const STORAGE_KEY = "ekinavi-survey-v1";
 const TAP_TOLERANCE_PX = 8;
 const MAP_MARGIN_METERS = 15;
@@ -452,6 +457,7 @@ $("clear").addEventListener("click", () => {
 
 async function main() {
   $("floor-label").textContent = FLOOR.label;
+  $("survey-map").setAttribute("aria-label", `${FLOOR.label}の通路の地図`);
   $("sign-id").value = suggestId();
   renderRecords();
   const [floorMap, station, site] = await Promise.all([

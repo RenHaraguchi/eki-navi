@@ -21,7 +21,7 @@ namespace EkiNavi.EditorTools
     public static class SignRouteDemoSceneBuilder
     {
         const string ScenePath = "Assets/EkiNavi/Scenes/SignRouteDemo.unity";
-        const string RoutePath = "Assets/EkiNavi/Routes/jr_south_to_new_south.json";
+        const string RoutePath = "Assets/EkiNavi/Routes/jr_west_to_keio_hiroba.json";
         const string SignsPath = "Assets/EkiNavi/Data/signs.json";
         const string LibraryPath = "Assets/EkiNavi/ImageTracking/SignLibrary.asset";
         const string LineMaterialPath = "Assets/EkiNavi/Materials/RouteLine.mat";
