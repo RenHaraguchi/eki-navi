@@ -79,7 +79,7 @@ GEMINI_BACKEND=apikey .venv/bin/python -m eval.run
 
 ## 配置
 
-`Dockerfile` で Cloud Run に配置します。経路パックをイメージに焼き込むので、地図データ本体は入りません。次のコマンドは未実行の例です。課金の担当とプロジェクトが決まってから確かめてください。
+`Dockerfile` で Cloud Run に配置します。経路パックをイメージに焼き込むので、地図データ本体は入りません。権限の付け方、確かめ方、アプリへの URL の入れ方までの手順は [docs/cloud-run-deploy.md](../docs/cloud-run-deploy.md) にあります。次のコマンドは、その手順の中心の部分です。
 
 ```
 gcloud run deploy eki-navi --source . --region asia-northeast1 \
