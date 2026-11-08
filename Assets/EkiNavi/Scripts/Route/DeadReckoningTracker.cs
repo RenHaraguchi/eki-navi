@@ -59,6 +59,9 @@ namespace EkiNavi.Route
 
         void Awake()
         {
+            // 画面が横向きに切り替わると、カメラの上の向きが 90 度回り、足元に向けているときの
+            // 歩く向き（スマホの上端の向き）がずれる。案内は縦向きで使うので固定する
+            Screen.orientation = ScreenOrientation.Portrait;
             route = GetComponent<RouteRenderer>();
             motion = GetComponent<RouteMotionGuard>();
             float saved = PlayerPrefs.GetFloat(SignKey, 0f);

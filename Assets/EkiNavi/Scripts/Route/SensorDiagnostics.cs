@@ -90,7 +90,7 @@ namespace EkiNavi.Route
             var gravity = GravitySensor.current != null ? GravitySensor.current.gravity.ReadValue() : acceleration;
             gyroHeading.Update(gyro, gravity, dt);
 
-            float arYaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 0f;
+            float arYaw = cameraTransform != null ? WalkYaw() : 0f;
             if (hasLastArYaw && dt > 0f)
             {
                 float arRate = Mathf.DeltaAngle(lastArYaw, arYaw) / dt;
@@ -114,6 +114,11 @@ namespace EkiNavi.Route
             }
         }
 
+        // 推測航法と同じ取り方の、歩く向きの角度（真下や真上に向けても飛ばない）
+        float WalkYaw() => DeadReckoning.TryWalkDirection(cameraTransform.forward, cameraTransform.up, out var d)
+            ? Azimuth.Of(d)
+            : 0f;
+
         static string F(float v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
 
         void StartRecording()
@@ -122,7 +127,7 @@ namespace EkiNavi.Route
             recording = true;
             startTime = Time.time;
             startSteps = guard.Steps;
-            startArYaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 0f;
+            startArYaw = cameraTransform != null ? WalkYaw() : 0f;
             startGyroHeading = gyroHeading.HeadingDeg;
             samples = 0;
             agreement = 0f;
@@ -179,12 +184,12 @@ namespace EkiNavi.Route
             }
             if (GUI.Button(new Rect(20 + w * 0.52f, y, w * 0.48f, h), "Zero heading", buttonStyle))
             {
-                startArYaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 0f;
+                startArYaw = cameraTransform != null ? WalkYaw() : 0f;
                 startGyroHeading = gyroHeading.HeadingDeg;
                 agreement = 0f;
             }
 
-            float arTurn = cameraTransform != null ? Mathf.DeltaAngle(startArYaw, cameraTransform.eulerAngles.y) : 0f;
+            float arTurn = cameraTransform != null ? Mathf.DeltaAngle(startArYaw, WalkYaw()) : 0f;
             float gyroTurn = Mathf.DeltaAngle(startGyroHeading, gyroHeading.HeadingDeg);
             string sign = Mathf.Abs(agreement) < 1f ? "turn in place to check" : agreement > 0 ? "same (Sign +1)" : "opposite (Sign -1)";
             string text =
