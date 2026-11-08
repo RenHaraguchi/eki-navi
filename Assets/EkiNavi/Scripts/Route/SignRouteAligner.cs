@@ -359,7 +359,8 @@ namespace EkiNavi.Route
                     text = Arrived
                         ? $"Arrived: {route.Data.goal.name}"
                         : $"Remaining: {remaining:0} m   (2-finger tap to re-align)";
-                    text += $"\nSign {alignedSign.id}  yaw {alignment.YawDeg:0.0}  normal {detectedAzimuth:0.0}  floor {floor.Source} {floor.Y:0.00}";
+                    if (DevOverlay.Visible)
+                        text += $"\nSign {alignedSign.id}  yaw {alignment.YawDeg:0.0}  normal {detectedAzimuth:0.0}  floor {floor.Source} {floor.Y:0.00}";
                     break;
                 case State.Stabilizing:
                     text = "Hold still on the sign...";

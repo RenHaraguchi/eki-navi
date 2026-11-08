@@ -92,12 +92,15 @@ namespace EkiNavi.EditorTools
             }
 
             // ARCore の画像認識で見つけにくい板のために、Gemini で見分ける「Scan sign」を付ける。
-            // サーバーの URL は空のまま。使うときに Inspector で入れる
+            // サーバーの URL は、環境変数 EKINAVI_SERVER_URL があれば入れる（Cloud Run に出したあとのビルド用）。
+            // なければ空のままなので、使うときに Inspector で入れる
             var vision = routeGo.AddComponent<SignVisionAligner>();
             so = new SerializedObject(vision);
             so.FindProperty("arCamera").objectReferenceValue = origin.Camera;
             so.FindProperty("cameraBackground").objectReferenceValue = origin.Camera.GetComponent<ARCameraBackground>();
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
+            var serverUrl = System.Environment.GetEnvironmentVariable("EKINAVI_SERVER_URL");
+            if (!string.IsNullOrWhiteSpace(serverUrl)) so.FindProperty("serverUrl").stringValue = serverUrl.Trim();
             so.ApplyModifiedPropertiesWithoutUndo();
 
             // 歩いている間の位置は、ジャイロと歩数で進める（ARCore が地下で位置を見失いやすいため）
@@ -114,6 +117,9 @@ namespace EkiNavi.EditorTools
             so = new SerializedObject(diagnostics);
             so.FindProperty("cameraTransform").objectReferenceValue = origin.Camera.transform;
             so.ApplyModifiedPropertiesWithoutUndo();
+
+            // 開発用の表示は、画面の左上を素早く 3 回たたくと出る（デモでは隠しておく）
+            routeGo.AddComponent<DevOverlayToggle>();
 
             // ARCore は既定で 640×480 を選ぶことがあるので、起動したら大きい解像度に切り替える
             if (!origin.Camera.TryGetComponent<CameraResolutionSelector>(out _))

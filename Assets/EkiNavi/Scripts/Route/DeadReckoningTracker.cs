@@ -170,7 +170,7 @@ namespace EkiNavi.Route
         // 画面の文字は英数字だけにしている（端末によって日本語のフォントがないため）
         void OnGUI()
         {
-            if (!showStatus) return;
+            if (!showStatus || !DevOverlay.Visible) return;
             if (style == null)
             {
                 style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(Screen.height * 0.018f) };

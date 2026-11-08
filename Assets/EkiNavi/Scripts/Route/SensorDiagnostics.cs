@@ -165,7 +165,7 @@ namespace EkiNavi.Route
         // 画面の文字は英数字だけにしている（端末によって日本語のフォントがないため）
         void OnGUI()
         {
-            if (!showPanel) return;
+            if (!showPanel || !DevOverlay.Visible) return;
             if (labelStyle == null)
             {
                 int size = Mathf.RoundToInt(Screen.height * 0.022f);

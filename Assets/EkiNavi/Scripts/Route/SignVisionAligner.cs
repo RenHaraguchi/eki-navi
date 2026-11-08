@@ -27,7 +27,8 @@ namespace EkiNavi.Route
     [RequireComponent(typeof(SignRouteAligner))]
     public class SignVisionAligner : MonoBehaviour
     {
-        [Tooltip("サーバーの URL（例: https://xxxx.a.run.app）。末尾の / はなくてよい")]
+        [Tooltip("サーバーの URL（例: https://xxxx.a.run.app）。末尾の / はなくてよい。"
+            + "シーンを作るメニューは、環境変数 EKINAVI_SERVER_URL があればそれを入れる")]
         [SerializeField] string serverUrl = "";
         [SerializeField] ARCameraBackground cameraBackground;
         [SerializeField] Camera arCamera;
@@ -343,8 +344,25 @@ namespace EkiNavi.Route
             GUI.enabled = !busy;
             if (GUI.Button(rect, busy ? "Scanning..." : "Scan sign", buttonStyle)) Scan();
             GUI.enabled = true;
-            if (!string.IsNullOrEmpty(status))
-                GUI.Label(new Rect(20, rect.y - h * 1.2f, Screen.width - 40, h * 1.2f), status, labelStyle);
+            string shown = DevOverlay.Visible ? status : ForUser(status);
+            if (!string.IsNullOrEmpty(shown))
+                GUI.Label(new Rect(20, rect.y - h * 1.2f, Screen.width - 40, h * 1.2f), shown, labelStyle);
+        }
+
+        /// <summary>開発用の表示を隠しているときの、利用者向けの短い案内。</summary>
+        static string ForUser(string status)
+        {
+            if (string.IsNullOrEmpty(status)) return status;
+            if (status.StartsWith("Aligned at"))
+                return status.Contains("Direction may be off")
+                    ? "Aligned. For a better direction, scan again within 3 m at an angle"
+                    : "Aligned. Follow the arrow";
+            if (status.StartsWith("Sending")) return "Checking the sign...";
+            if (status.StartsWith("No known sign")) return "No registered sign found. Point at a sign and try again";
+            if (status.StartsWith("Server error") || status.StartsWith("Sign check unavailable"))
+                return "Cannot check the sign now. Try again";
+            if (status.Contains("box looks wrong")) return "Could not measure the sign. Move closer and try again";
+            return status;
         }
     }
 }
