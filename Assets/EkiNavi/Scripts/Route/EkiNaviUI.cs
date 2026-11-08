@@ -114,20 +114,6 @@ namespace EkiNavi.Route
         string T(string key) => language == "ja" ? Words[key].ja : Words[key].en;
         string Goal => language == "ja" ? goalNameJa : goalNameEn;
 
-        /// <summary>
-        /// 案内板の経路デモ（SignVisionAligner と RouteArrow があるシーン）が始まったら、この画面を付ける。
-        /// シーンに保存すると、Android のビルドで起動時に「level0 is corrupted」で落ちたため（2026-11-09、原因は未特定）、
-        /// シーンには置かず、起動したときに付ける。
-        /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Install()
-        {
-            if (FindFirstObjectByType<EkiNaviUI>() != null) return;
-            var routeArrow = FindFirstObjectByType<RouteArrow>();
-            if (routeArrow == null || FindFirstObjectByType<SignVisionAligner>() == null) return;
-            routeArrow.gameObject.AddComponent<EkiNaviUI>();
-        }
-
         void Awake()
         {
             if (vision == null) vision = FindFirstObjectByType<SignVisionAligner>();
