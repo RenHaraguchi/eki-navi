@@ -55,7 +55,8 @@ namespace EkiNavi.Route
         // 読み取りと案内の画面で毎フレーム書き換える部品
         Text scanStatus, toastText, guideIcon, guideMain, guideSub, guideDestination;
         GameObject scanStatusPill, toast, guideCard;
-        Image guideCardImage, progressFill;
+        Image guideCardImage;
+        RectTransform progressFill;
         Button scanButton;
         float toastUntil;
         string alignedSignName = "";
@@ -177,7 +178,7 @@ namespace EkiNavi.Route
 
             guideDestination.text = string.Format(T("destinationLabel"), Goal);
             float total = Mathf.Max(1f, arrow.TotalMeters);
-            progressFill.fillAmount = Mathf.Clamp01(1f - arrow.RemainingMeters / total);
+            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - arrow.RemainingMeters / total), 1f);
 
             if (!arrow.IsGuiding)
             {
@@ -296,7 +297,7 @@ namespace EkiNavi.Route
                 int index = i;
                 var item = Choice(body.transform, "", 40, () => destinationIndex = index, 120, TextAnchor.MiddleLeft);
                 var label = item.GetComponentInChildren<Text>();
-                label.rectTransform.offsetMin = new Vector2(110, 0);
+                label.rectTransform.offsetMin = new Vector2(110, 16);
                 var badge = Panel(item.transform, "LineColor", Hex(Destinations[i].color), circle);
                 Anchor(badge, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(36, -26), new Vector2(88, 26));
                 refreshers.Add(() =>
@@ -384,10 +385,9 @@ namespace EkiNavi.Route
             Anchor(track, new Vector2(0, 0), new Vector2(1, 0), new Vector2(44, 50), new Vector2(-44, 74));
             var fill = Panel(track.transform, "Fill", Blue, rounded);
             Stretch(fill);
-            progressFill = fill.GetComponent<Image>();
-            progressFill.type = Image.Type.Filled;
-            progressFill.fillMethod = Image.FillMethod.Horizontal;
-            progressFill.fillAmount = 0f;
+            // 角の丸みを保つため、塗りの幅（右端の位置）で進み具合を出す
+            progressFill = (RectTransform)fill.transform;
+            progressFill.anchorMax = new Vector2(0f, 1f);
             var rescan = OutlineButton(bar.transform, () => Show(Screen.Scan));
             Anchor(rescan.gameObject, new Vector2(0.62f, 0.5f), new Vector2(1, 1), new Vector2(10, 4), new Vector2(-44, -24));
             refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
@@ -520,6 +520,13 @@ namespace EkiNavi.Route
             float sx = ax == 0f ? 1f : -1f, sy = ay == 0f ? 1f : -1f;
             Anchor(h, a, a, new Vector2(Mathf.Min(0, sx * length), Mathf.Min(0, sy * thickness)), new Vector2(Mathf.Max(0, sx * length), Mathf.Max(0, sy * thickness)));
             Anchor(v, a, a, new Vector2(Mathf.Min(0, sx * thickness), Mathf.Min(0, sy * length)), new Vector2(Mathf.Max(0, sx * thickness), Mathf.Max(0, sy * length)));
+            // 白い物に重なっても見えるよう、影を付ける
+            foreach (var bar in new[] { h, v })
+            {
+                var shadow = bar.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0, 0, 0, 0.55f);
+                shadow.effectDistance = new Vector2(3, -3);
+            }
         }
 
         void Check(Transform badge)
