@@ -177,20 +177,18 @@ class MetadataToken:
         return self._token
 
 
-class GeminiClassifier:
-    """Gemini の REST API を呼ぶ判定処理。"""
+class GeminiEndpoint:
+    """Gemini の generateContent を呼ぶ。API キーでも Vertex AI でも同じ形で使う。"""
 
-    engine: Engine = "gemini"
-
-    def __init__(self, settings: Settings, targets: tuple[Target, ...]) -> None:
+    def __init__(self, settings: Settings, model: str = "") -> None:
         """接続先を決める。
 
         Args:
             settings: サーバーの設定。
-            targets: 行き先の目録。
+            model: 使うモデル。空なら settings.gemini_model。
         """
         self._settings = settings
-        self._targets = targets
+        self._model = model or settings.gemini_model
         self._token = (
             MetadataToken(settings.gemini_timeout_seconds)
             if settings.gemini_backend == "vertex"
@@ -201,7 +199,7 @@ class GeminiClassifier:
         settings = self._settings
         if self._token is None:
             return (
-                API_KEY_URL.format(model=settings.gemini_model),
+                API_KEY_URL.format(model=self._model),
                 {"x-goog-api-key": settings.gemini_api_key},
             )
         location = settings.google_location
@@ -214,28 +212,28 @@ class GeminiClassifier:
             host=host,
             project=settings.google_project,
             location=location,
-            model=settings.gemini_model,
+            model=self._model,
         )
         return url, {"Authorization": f"Bearer {self._token.get()}"}
 
-    def classify(self, text: str) -> Classification:
-        """文章を判定する。
+    def post(self, body: dict[str, object]) -> dict[str, object]:
+        """generateContent を呼び、応答の JSON を返す。
 
         Args:
-            text: 利用者の入力。
+            body: リクエストの本文。
 
         Returns:
-            判定の結果。
+            応答の JSON。
 
         Raises:
-            ClassifierError: 通信に失敗したとき、または応答が不正なとき。
+            ClassifierError: 通信に失敗したとき。
         """
         url, headers = self._url_and_headers()
         try:
             response = httpx.post(
                 url,
                 headers=headers,
-                json=build_request_body(text, self._targets),
+                json=body,
                 timeout=self._settings.gemini_timeout_seconds,
             )
             response.raise_for_status()
@@ -249,4 +247,37 @@ class GeminiClassifier:
             raise ClassifierError(
                 f"Gemini の呼び出しに失敗しました: {type(error).__name__}"
             ) from None
+        if not isinstance(payload, dict):
+            raise ClassifierError("Gemini の応答の形が想定と違います")
+        return payload
+
+
+class GeminiClassifier:
+    """Gemini の REST API を呼ぶ判定処理。"""
+
+    engine: Engine = "gemini"
+
+    def __init__(self, settings: Settings, targets: tuple[Target, ...]) -> None:
+        """接続先を決める。
+
+        Args:
+            settings: サーバーの設定。
+            targets: 行き先の目録。
+        """
+        self._endpoint = GeminiEndpoint(settings)
+        self._targets = targets
+
+    def classify(self, text: str) -> Classification:
+        """文章を判定する。
+
+        Args:
+            text: 利用者の入力。
+
+        Returns:
+            判定の結果。
+
+        Raises:
+            ClassifierError: 通信に失敗したとき、または応答が不正なとき。
+        """
+        payload = self._endpoint.post(build_request_body(text, self._targets))
         return parse_response(payload, self._targets)

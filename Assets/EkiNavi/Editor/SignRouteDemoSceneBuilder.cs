@@ -91,6 +91,19 @@ namespace EkiNavi.EditorTools
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
 
+            // ARCore の画像認識で見つけにくい板のために、Gemini で見分ける「Scan sign」を付ける。
+            // サーバーの URL は空のまま。使うときに Inspector で入れる
+            var vision = routeGo.AddComponent<SignVisionAligner>();
+            so = new SerializedObject(vision);
+            so.FindProperty("arCamera").objectReferenceValue = origin.Camera;
+            so.FindProperty("cameraBackground").objectReferenceValue = origin.Camera.GetComponent<ARCameraBackground>();
+            so.FindProperty("planeManager").objectReferenceValue = planeManager;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            // ARCore は既定で 640×480 を選ぶことがあるので、起動したら大きい解像度に切り替える
+            if (!origin.Camera.TryGetComponent<CameraResolutionSelector>(out _))
+                origin.Camera.gameObject.AddComponent<CameraResolutionSelector>();
+
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
 

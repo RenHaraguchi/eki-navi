@@ -32,15 +32,18 @@ http://localhost:8090/survey は、現地で吊り下げ看板の位置と向き
 
 Gemini のキーがなくても動きます（`GEMINI_BACKEND=stub`、既定）。このときは辞書だけで行き先を判定します。
 
+`POST /v1/sign/identify` は、アプリが撮ったカメラの画像（JPEG を base64 にしたもの）と候補の案内板の ID を受け取り、Gemini でどの板が写っているかと、画像の中の枠を返します。`stub` のときは `status` が `unavailable` になります。見分けやすくするため、`signs.json` の各板に `text`（板に書いてある主な文字）を足せます。
+
 | 環境変数 | 意味 |
 |---|---|
 | `GEMINI_BACKEND` | `stub`（辞書のみ）、`apikey`（Gemini API のキー）、`vertex`（Cloud Run のサービスアカウント） |
 | `GEMINI_API_KEY` | `apikey` のときのキー。コミットしない |
 | `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION` | `vertex` のときの接続先 |
 | `GEMINI_MODEL` | 既定は `gemini-3.5-flash-lite` |
+| `GEMINI_VISION_MODEL` | 案内板の画像を見分けるモデル。空なら `GEMINI_MODEL` と同じ |
 | `GEMINI_DAILY_LIMIT` | 1日の Gemini の呼び出し上限（インスタンスごと）。超えると辞書に切り替える |
 | `API_RATE_PER_MINUTE` | 1分あたりの経路 API の上限（インスタンスごと、全員の合計） |
-| `GEMINI_RATE_PER_MINUTE` | 1分あたりの行き先 API の上限（インスタンスごと、全員の合計） |
+| `GEMINI_RATE_PER_MINUTE` | 1分あたりの行き先 API と、案内板の判別 API それぞれの上限（インスタンスごと、全員の合計） |
 | `DEMO_VIDEO_URL`、`DEMO_APK_URL` | ページに出すリンク |
 
 ## 経路パックを作り直す
