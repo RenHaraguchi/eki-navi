@@ -831,6 +831,16 @@
             "type": "array",
             "title": "Corners"
           },
+          "readText": {
+            "type": "string",
+            "title": "Readtext",
+            "description": "Gemini が読んだ板の文字。確かめるために返す"
+          },
+          "matchScore": {
+            "type": "number",
+            "title": "Matchscore",
+            "description": "読んだ文字といちばん近い候補の重なり（0〜1）"
+          },
           "engine": {
             "type": "string",
             "enum": [
@@ -855,12 +865,14 @@
           "signId",
           "box",
           "corners",
+          "readText",
+          "matchScore",
           "engine",
           "latencyMs",
           "packVersion"
         ],
         "title": "SignIdentifyResponse",
-        "description": "案内板を見分けた結果。\n\nstatus の意味:\n- ok: signId の板が box の位置に写っている。corners は板の左上、右上、右下、左下の角\n  （答えがないか、形がおかしければ []。そのときは box だけで位置を求める）\n- not_found: 候補の板は写っていない。かざし直してもらう\n- unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）"
+        "description": "案内板を見分けた結果。\n\nstatus の意味:\n- ok: signId の板が box の位置に写っている。corners は板の左上、右上、右下、左下の角\n  （答えがないか、形がおかしければ []。そのときは box だけで位置を求める）\n- not_found: 候補の板は写っていない（読んだ文字がどの候補とも十分に重ならない）。\n  かざし直してもらう。text のない候補は照らし合わせられない\n- unavailable: 見分けられなかった（Gemini を使わない設定、通信の失敗、回数の上限）"
       },
       "SignOnRoute": {
         "properties": {

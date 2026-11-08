@@ -259,6 +259,8 @@ def _add_sign_vision_route(
                 y_max=box.y_max if box else 0.0,
             ),
             corners=[schemas.ImagePoint(x=x, y=y) for x, y in result.corners],
+            read_text=result.read_text,
+            match_score=round(result.score, 3),
             engine="gemini" if identifier is not None else "stub",
             latency_ms=result.latency_ms,
             pack_version=station.version,

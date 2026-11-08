@@ -77,6 +77,8 @@ namespace EkiNavi.Route
             public string signId;
             public ImageBox box;
             public ImagePoint[] corners;
+            public string readText;
+            public float matchScore;
             public string engine;
             public int latencyMs;
         }
@@ -174,7 +176,7 @@ namespace EkiNavi.Route
                         yield break;
                     }
                     var response = JsonUtility.FromJson<IdentifyResponse>(request.downloadHandler.text);
-                    Debug.Log($"[EkiNavi] 案内板の判別: {response.status} {response.signId}（Gemini {response.latencyMs} ms、往復 {roundTrip} ms、{jpeg.Length / 1024} KB）");
+                    Debug.Log($"[EkiNavi] 案内板の判別: {response.status} {response.signId}（重なり {response.matchScore:0.00}、Gemini {response.latencyMs} ms、往復 {roundTrip} ms、{jpeg.Length / 1024} KB）読んだ文字: {response.readText}");
                     Apply(response, view, roundTrip);
                 }
             }
