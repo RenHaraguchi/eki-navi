@@ -10,7 +10,11 @@ using UnityEngine.UI;
 namespace EkiNavi.Route
 {
     /// <summary>
-    /// 利用者向けの画面（デザインの試作）。画面の流れ:
+    /// 利用者向けの画面（デザインの試作）。
+    /// Google マップの経路のリンク（共有・貼り付け、IncomingLink）を読んだときは、駅を選ぶ画面の上に
+    /// 出発・乗り換え・到着の駅を並べる。乗り換えの駅を押すと、路線を選ぶ画面は飛ばして
+    /// 「新宿駅：JR改札内 → 小田急線の乗り換え改札」で読み取りへ進む。
+    /// 画面の流れ:
     /// 1. 設定: 言語・駅・行き先の路線を選ぶ
     /// 2. 読み取り: 近くの案内板にカメラを向けて「読み取る」を押す（SignVisionAligner.Scan）
     /// 3. 現在地: 合わせられたら、どの案内板の前にいるかを出す
@@ -38,9 +42,7 @@ namespace EkiNavi.Route
         [SerializeField] SignVisionAligner vision;
         [SerializeField] SignRouteAligner aligner;
         [SerializeField] RouteArrow arrow;
-        [Tooltip("ゴールの名前（到着の画面に出す）")]
-        [SerializeField] string goalNameJa = "小田急線のりば";
-        [SerializeField] string goalNameEn = "Odakyu Line";
+        [SerializeField] IncomingLink incomingLink;
 
         Screen screen = Screen.Stations;
         string language = "ja";
@@ -64,6 +66,14 @@ namespace EkiNavi.Route
         string alignedSignName = "";
         bool directionWarning;
         bool hasGuide;  // 一度でも位置が合って案内を始めたか（読み取りの画面から案内へ戻れる）
+
+        // Google マップの経路のリンクから読んだもの
+        readonly List<(string name, string role, string stationId)> routeStops = new List<(string, string, string)>();  // 出発・乗り換え・到着
+        string routeLineId;            // 乗り換える路線（決まれば路線の画面を飛ばす）
+        string fromLineId = "jr";      // 案内を始める改札の中（どの会社の改札内か）
+        bool linesSkipped;             // 路線の画面を飛ばして読み取りに来たか（戻る先が駅の画面になる）
+        string linkMessage = "";       // リンクを読んだ結果の知らせ（駅を選ぶ画面に出す）
+        bool linkMessageIsError;
 
         /// <summary>案内の画面に出す内容。ふだんは RouteArrow から読む。</summary>
         struct GuideInfo
@@ -156,7 +166,21 @@ namespace EkiNavi.Route
             ["upright"] = ("スマホを縦に\n戻してください", "Hold your phone upright"),
             ["uprightSub"] = ("縦に戻すと矢印が出ます", "The arrow appears when the phone is upright"),
             ["offRouteSub"] = ("矢印の向きに戻ってください（{0} m）", "Follow the arrow back ({0} m)"),
-            ["platform"] = ("のりば", ""),
+            ["platform"] = ("乗り換え改札", "transfer gates"),
+            ["goal"] = ("{0}の乗り換え改札", "the {0} transfer gates"),
+            ["fromGates"] = ("{0}改札内", "Inside {0} gates"),
+            ["guideRoute"] = ("{0}：{1} → {2}", "{0}: {1} → {2}"),
+            ["backStations"] = ("← 駅を選ぶ", "← Select station"),
+            ["routeStops"] = ("Google マップの経路", "Google Maps route"),
+            ["roleFrom"] = ("出発", "From"),
+            ["roleTransfer"] = ("乗り換え", "Transfer"),
+            ["roleTo"] = ("到着", "To"),
+            ["fromMaps"] = ("Google マップの経路を貼り付ける", "Paste a Google Maps route"),
+            ["fromMapsHint"] = ("Google マップで経路を出し、「共有」から駅ナビAR を選んでも読み込めます", "You can also share a route from Google Maps to Eki Navi AR"),
+            ["linkChecking"] = ("経路を確かめています…", "Checking the route..."),
+            ["linkNotMaps"] = ("Google マップの経路のリンクが見つかりません。リンクをコピーしてから押してください", "No Google Maps route link found. Copy the link first"),
+            ["linkNoStation"] = ("この経路では、案内できる駅で乗り換えません", "This route has no transfer at a supported station"),
+            ["linkOffline"] = ("経路を確かめられません。ネットにつないで、もう一度試してください", "Could not check the route. Connect to the internet and try again"),
             ["rescan"] = ("読み取り直す", "Rescan"),
             ["lost"] = ("位置を見失いました", "Lost your position"),
             ["lostSub"] = ("案内板を読み取り直してください", "Scan a sign again"),
@@ -166,13 +190,31 @@ namespace EkiNavi.Route
         };
 
         string T(string key) => language == "ja" ? Words[key].ja : Words[key].en;
-        string Goal => language == "ja" ? goalNameJa : goalNameEn;
+        string LineName(int index) => language == "ja" ? Destinations[index].ja : Destinations[index].en;
+        /// <summary>行き先。「小田急線の乗り換え改札」</summary>
+        string Goal => string.Format(T("goal"), LineName(destinationIndex));
+        string FromName
+        {
+            get
+            {
+                int i = Array.FindIndex(Destinations, d => LineId(d.code) == fromLineId);
+                return i >= 0 ? LineName(i) : "JR";
+            }
+        }
+        /// <summary>「新宿駅：JR改札内 → 小田急線の乗り換え改札」</summary>
+        string GuideRoute => stationIndex < 0 ? "" : string.Format(T("guideRoute"),
+            string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en),
+            string.Format(T("fromGates"), FromName), Goal);
+
+        // 路線の記号 → MapsRouteLink の路線の id
+        static string LineId(string code) => code switch { "OH" => "odakyu", "KO" => "keio", "S" => "toei_shinjuku", "M" => "marunouchi", _ => null };
 
         void Awake()
         {
             if (vision == null) vision = FindFirstObjectByType<SignVisionAligner>();
             if (aligner == null) aligner = FindFirstObjectByType<SignRouteAligner>();
             if (arrow == null) arrow = FindFirstObjectByType<RouteArrow>();
+            if (incomingLink == null && !TryGetComponent(out incomingLink)) incomingLink = gameObject.AddComponent<IncomingLink>();
             font = LoadFont();
             rounded = RoundedSprite(48);
             circle = RoundedSprite(128);
@@ -188,11 +230,55 @@ namespace EkiNavi.Route
         void OnEnable()
         {
             if (vision != null) vision.Aligned += OnAligned;
+            if (incomingLink != null) incomingLink.Handled += OnLink;
         }
 
         void OnDisable()
         {
             if (vision != null) vision.Aligned -= OnAligned;
+            if (incomingLink != null) incomingLink.Handled -= OnLink;
+        }
+
+        /// <summary>Google マップの経路のリンクを読み終えたとき。経路の駅を、駅を選ぶ画面の上に並べる。</summary>
+        void OnLink(IncomingLink.Outcome outcome, MapsRouteLink.Result result)
+        {
+            linkMessageIsError = outcome != IncomingLink.Outcome.Resolved;
+            switch (outcome)
+            {
+                case IncomingLink.Outcome.Resolved:
+                case IncomingLink.Outcome.NoStation:
+                    SetRouteStops(result);
+                    int line = Array.FindIndex(Destinations, d => LineId(d.code) == result.LineId);
+                    if (line >= 0) destinationIndex = line;
+                    routeLineId = line >= 0 ? result.LineId : null;
+                    fromLineId = result.FromLineId ?? "jr";
+                    linkMessage = outcome == IncomingLink.Outcome.NoStation ? T("linkNoStation") : "";
+                    break;
+                case IncomingLink.Outcome.Offline: linkMessage = T("linkOffline"); break;
+                default: linkMessage = T("linkNotMaps"); break;
+            }
+            Show(Screen.Stations);
+        }
+
+        /// <summary>経路の駅を、出発・乗り換え・到着の順に並べる。案内できる駅（今は新宿）だけ押せる。</summary>
+        void SetRouteStops(MapsRouteLink.Result result)
+        {
+            routeStops.Clear();
+            string Ready(string name) => MapsRouteLink.StationKey(name) == MapsRouteLink.Shinjuku ? MapsRouteLink.Shinjuku : null;
+            if (!string.IsNullOrEmpty(result.OriginName)) routeStops.Add((result.OriginName, "roleFrom", Ready(result.OriginName)));
+            bool endsAtShinjuku = Ready(result.OriginName) != null || Ready(result.DestinationName) != null;
+            if (result.StationId != null && !endsAtShinjuku) routeStops.Add((null, "roleTransfer", result.StationId));
+            if (!string.IsNullOrEmpty(result.DestinationName)) routeStops.Add((result.DestinationName, "roleTo", Ready(result.DestinationName)));
+        }
+
+        /// <summary>「新大久保駅」「Hatsudai Station」→「新大久保」「Hatsudai」。</summary>
+        static string StopName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            string s = name.Trim();
+            if (s.EndsWith(" Station", StringComparison.OrdinalIgnoreCase)) s = s.Substring(0, s.Length - 8);
+            if (s.EndsWith("駅")) s = s.Substring(0, s.Length - 1);
+            return s;
         }
 
         void OnAligned(SignEntry sign)
@@ -218,6 +304,14 @@ namespace EkiNavi.Route
 
             switch (screen)
             {
+                case Screen.Stations:
+                    if (incomingLink != null && incomingLink.Busy && linkMessage != T("linkChecking"))
+                    {
+                        linkMessage = T("linkChecking");
+                        linkMessageIsError = false;
+                        Refresh();
+                    }
+                    break;
                 case Screen.Scan:
                     UpdateScan();
                     break;
@@ -411,25 +505,37 @@ namespace EkiNavi.Route
             scroll.horizontal = false;
             scroll.movementType = ScrollRect.MovementType.Clamped;
 
+            // Google マップの経路の駅（リンクを読んだときだけ出す）
+            var routeTitle = RegionTitle(content.transform, "", "");
+            var routeTitleLabel = routeTitle.GetComponentInChildren<Text>();
+            var routeGrid = StationGrid(content.transform);
+            for (int i = 0; i < 3; i++) RouteTile(routeGrid.transform, i);
+            refreshers.Add(() =>
+            {
+                routeTitleLabel.text = T("routeStops");
+                routeTitle.SetActive(routeStops.Count > 0);
+                routeGrid.SetActive(routeStops.Count > 0);
+            });
+
             int stationNumber = 0;
             foreach (var region in Regions)
             {
                 RegionTitle(content.transform, region.ja, region.en);
-                var gridGo = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup), typeof(LayoutElement));
-                gridGo.transform.SetParent(content.transform, false);
-                // 四角の大きさから幅が決まって広がり続けないよう、幅は親に合わせる
-                var gridElement = gridGo.GetComponent<LayoutElement>();
-                gridElement.minWidth = 0f;
-                gridElement.preferredWidth = 0f;
-                gridElement.flexibleWidth = 1f;
-                var grid = gridGo.GetComponent<GridLayoutGroup>();
-                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                grid.constraintCount = 4;
-                grid.spacing = new Vector2(20, 30);
-                grid.cellSize = new Vector2(200, 200 + StationLabelHeight);
-                stationGrids.Add(grid);
+                var gridGo = StationGrid(content.transform);
                 foreach (var _ in region.stations) StationTile(gridGo.transform, stationNumber++);
             }
+
+            // Google マップの経路のリンクを貼り付ける
+            var paste = OutlineButton(content.transform, () => { if (incomingLink != null) incomingLink.PasteFromClipboard(); });
+            paste.gameObject.AddComponent<LayoutElement>().preferredHeight = 110;
+            var hint = Label(content.transform, "", 30, SubInk, FontStyle.Normal, TextAnchor.UpperLeft);
+            refreshers.Add(() =>
+            {
+                paste.GetComponentInChildren<Text>().text = T("fromMaps");
+                bool hasMessage = !string.IsNullOrEmpty(linkMessage);
+                hint.text = hasMessage ? linkMessage : T("fromMapsHint");
+                hint.color = hasMessage && linkMessageIsError ? Warning : SubInk;
+            });
 
             var settings = Button(page.transform, Color.white, circle, () => Show(Screen.Account));
             Anchor(settings.gameObject, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-180, 60), new Vector2(-40, 200));
@@ -442,7 +548,76 @@ namespace EkiNavi.Route
             return page;
         }
 
-        void RegionTitle(Transform parent, string ja, string en)
+        /// <summary>駅の四角を 4 列に並べる枠（幅は FitStationGrids で画面に合わせる）。</summary>
+        GameObject StationGrid(Transform parent)
+        {
+            var gridGo = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup), typeof(LayoutElement));
+            gridGo.transform.SetParent(parent, false);
+            // 四角の大きさから幅が決まって広がり続けないよう、幅は親に合わせる
+            var gridElement = gridGo.GetComponent<LayoutElement>();
+            gridElement.minWidth = 0f;
+            gridElement.preferredWidth = 0f;
+            gridElement.flexibleWidth = 1f;
+            var grid = gridGo.GetComponent<GridLayoutGroup>();
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 4;
+            grid.spacing = new Vector2(20, 30);
+            grid.cellSize = new Vector2(200, 200 + StationLabelHeight);
+            stationGrids.Add(grid);
+            return gridGo;
+        }
+
+        /// <summary>経路の駅の index 番目。案内できる駅は青、まだの駅は「準備中」。乗り換えの駅は「JR → 小田急線」と出す。</summary>
+        void RouteTile(Transform parent, int index)
+        {
+            var go = new GameObject("RouteStop", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+            var button = go.GetComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.onClick.AddListener(() =>
+            {
+                if (index >= routeStops.Count || routeStops[index].stationId == null) return;
+                stationIndex = Array.FindIndex(Stations, st => st.ready);
+                // 乗り換える路線が経路から分かっていれば、路線を選ぶ画面は飛ばして、すぐ読み取りへ
+                linesSkipped = routeStops[index].role == "roleTransfer" && routeLineId != null;
+                if (!linesSkipped) fromLineId = "jr";
+                Show(linesSkipped ? Screen.Scan : Screen.Line);
+            });
+
+            var photo = Panel(go.transform, "Photo", Blue, rounded);
+            Anchor(photo, Vector2.zero, Vector2.one, new Vector2(0, StationLabelHeight), Vector2.zero);
+            var photoImage = photo.GetComponent<Image>();
+            var glyph = Label(photo.transform, "", 96, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            Stretch(glyph.gameObject);
+            var name = Label(go.transform, "", 36, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Anchor(name.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 50), new Vector2(-6, StationLabelHeight - 4));
+            var role = Label(go.transform, "", 26, Blue, FontStyle.Bold, TextAnchor.MiddleLeft);
+            role.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Anchor(role.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 50));
+            refreshers.Add(() =>
+            {
+                bool show = index < routeStops.Count;
+                go.SetActive(show);
+                if (!show) return;
+                var stop = routeStops[index];
+                bool ready = stop.stationId != null;
+                var shinjuku = Stations.First(st => st.ready);
+                // 案内できる駅は、こちらの表の名前で出す。ほかはリンクの名前のまま
+                string local = ready ? (language == "ja" ? shinjuku.ja : shinjuku.en) : StopName(stop.name);
+                button.interactable = ready;
+                photoImage.color = ready ? Blue : Hex("#C9CEDA");
+                glyph.fontSize = ready ? 96 : 32;
+                glyph.color = ready ? Color.white : SubInk;
+                glyph.text = ready ? local.Substring(0, 1) : T("soon");
+                name.text = local;
+                name.color = ready ? Ink : SubInk;
+                role.text = stop.role == "roleTransfer" && routeLineId != null
+                    ? $"{FromName} → {LineName(destinationIndex)}" : T(stop.role);
+            });
+        }
+
+        GameObject RegionTitle(Transform parent, string ja, string en)
         {
             var go = new GameObject("Region", typeof(RectTransform), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
@@ -453,6 +628,7 @@ namespace EkiNavi.Route
             Stretch(right.gameObject);
             var line = Panel(go.transform, "Line", Line, null);
             Anchor(line, Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 3));
+            return go;
         }
 
         // 写真の代わりに、色の四角と駅名の 1 文字目を出す（写真はあとで差し替える）
@@ -468,6 +644,7 @@ namespace EkiNavi.Route
             button.onClick.AddListener(() =>
             {
                 stationIndex = index;
+                fromLineId = "jr";
                 Show(Screen.Line);
             });
 
@@ -527,12 +704,12 @@ namespace EkiNavi.Route
             {
                 int index = i;
                 var item = Choice(body.transform, "", 40, () => { destinationIndex = index; Refresh(); }, 120, TextAnchor.MiddleLeft);
-                var badge = LineBadge(item.transform, i, 36, 72);
+                var badge = LineBadge(item.transform, () => index, 36, 72);
                 Anchor(badge, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(30, -36), new Vector2(-30, 36));
                 refreshers.Add(() => Highlight(item, destinationIndex == index));
             }
 
-            var start = PrimaryButton(page.transform, () => Show(Screen.Scan));
+            var start = PrimaryButton(page.transform, () => { linesSkipped = false; Show(Screen.Scan); });
             Anchor(start.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
             refreshers.Add(() => start.GetComponentInChildren<Text>().text = T("start"));
             return page;
@@ -592,10 +769,9 @@ namespace EkiNavi.Route
         }
 
         /// <summary>路線の記号を丸で囲んだものと、路線の色で囲んだ路線名を横に並べる。</summary>
-        GameObject LineBadge(Transform parent, int index, int fontSize, float height)
+        GameObject LineBadge(Transform parent, Func<int> index, int fontSize, float height)
         {
-            var line = Destinations[index];
-            var color = Hex(line.color);
+            var color = Hex(Destinations[index()].color);
             var row = new GameObject("LineBadge", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             row.transform.SetParent(parent, false);
             var layout = row.GetComponent<HorizontalLayoutGroup>();
@@ -607,15 +783,17 @@ namespace EkiNavi.Route
             layout.childForceExpandHeight = false;
 
             var ring = Panel(row.transform, "Code", color, circle);
+            var ringImage = ring.GetComponent<Image>();
             var ringSize = ring.AddComponent<LayoutElement>();
             ringSize.preferredWidth = height;
             ringSize.preferredHeight = height;
             var inner = Panel(ring.transform, "Inner", Color.white, circle);
             Stretch(inner, height * 0.1f);
-            var code = Label(inner.transform, line.code, Mathf.RoundToInt(height * 0.4f), color, FontStyle.Bold, TextAnchor.MiddleCenter);
+            var code = Label(inner.transform, "", Mathf.RoundToInt(height * 0.4f), color, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(code.gameObject);
 
             var pill = Panel(row.transform, "Name", color, barCorner);
+            var pillImage = pill.GetComponent<Image>();
             var pillSize = pill.AddComponent<LayoutElement>();
             pillSize.preferredHeight = height;
             var name = Label(pill.transform, "", fontSize, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
@@ -623,6 +801,12 @@ namespace EkiNavi.Route
             Stretch(name.gameObject);
             refreshers.Add(() =>
             {
+                var line = Destinations[index()];
+                var lineColor = Hex(line.color);
+                ringImage.color = lineColor;
+                code.text = line.code;
+                code.color = lineColor;
+                pillImage.color = lineColor;
                 name.text = language == "ja" ? line.ja : line.en;
                 pillSize.preferredWidth = name.preferredWidth + 44f;
             });
@@ -642,11 +826,12 @@ namespace EkiNavi.Route
             Anchor(step.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(48, 30), new Vector2(-48, -36));
             var hint = Label(card.transform, "", 42, Ink, FontStyle.Bold, TextAnchor.LowerLeft);
             Anchor(hint.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(48, 40), new Vector2(-48, -90));
-            refreshers.Add(() => { step.text = T("scanStep"); hint.text = T("scanHint"); });
+            // 上の行は「新宿駅：JR改札内 → 小田急線の乗り換え改札」（駅が決まっていなければ「現在地を確かめます」）
+            refreshers.Add(() => { step.text = stationIndex >= 0 ? GuideRoute : T("scanStep"); hint.text = T("scanHint"); });
 
-            var back = TextButton(page.transform, () => Show(Screen.Line));
-            Anchor(back.gameObject, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -110), new Vector2(360, -20));
-            refreshers.Add(() => back.GetComponentInChildren<Text>().text = T("back"));
+            var back = TextButton(page.transform, () => Show(linesSkipped ? Screen.Stations : Screen.Line));
+            Anchor(back.gameObject, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -110), new Vector2(400, -20));
+            refreshers.Add(() => back.GetComponentInChildren<Text>().text = T(linesSkipped ? "backStations" : "back"));
 
             // 読み取りに失敗しても、案内の途中なら案内へ戻れるようにする
             var backToGuide = TextButton(page.transform, () => Show(Screen.Guide));
@@ -706,8 +891,8 @@ namespace EkiNavi.Route
             var bar = Panel(page.transform, "Bottom", new Color(1, 1, 1, 0.95f), rounded);
             guideBar = bar;
             Anchor(bar, new Vector2(0, 0), new Vector2(1, 0), new Vector2(40, 60), new Vector2(-40, 300));
-            // 案内先は今は小田急線に固定（路線の選択を経路につなぐときに切り替える）
-            var destination = LineBadge(bar.transform, 0, 30, 58);
+            // 選んだ路線の札（経路そのものは、まだシーンの経路のまま）
+            var destination = LineBadge(bar.transform, () => destinationIndex, 30, 58);
             Anchor(destination, new Vector2(0, 0.5f), new Vector2(0.62f, 1), new Vector2(44, 0), new Vector2(0, -20));
             guideDestination = Label(destination.transform, "", 34, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             var track = Panel(bar.transform, "Track", Line, barCorner);
