@@ -28,6 +28,12 @@ namespace EkiNavi.Alignment
             Distance = 0f;
         }
 
+        /// <summary>歩数と距離はそのままで、位置だけを動かす（経路に沿わせたとき）。</summary>
+        public void MoveTo(Vector2 position)
+        {
+            Position = position;
+        }
+
         /// <summary>
         /// 歩数を進める。
         /// </summary>

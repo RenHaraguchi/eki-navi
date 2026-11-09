@@ -332,6 +332,9 @@ namespace EkiNavi.Route
             Aligned?.Invoke(sign);
             float distance = Vector3.Distance(view.Position, position);
             status = $"Aligned at {sign.id} ({source}, {distance:0.0} m, {roundTrip} ms)";
+            // 横向きと縦向きで同じ看板を撮ったときに比べられるよう、求めた看板の向きとカメラの向きを残す
+            var camForward = view.Rotation * Vector3.forward;
+            Debug.Log($"[EkiNavi] 看板の位置: {sign.id} {source}、距離 {distance:0.0} m、看板の表の向き {Azimuth.Of(normal):0} 度、カメラの向き {Azimuth.Of(new Vector2(camForward.x, camForward.z)):0} 度、画像の回転 {turn}");
             // 向きが確かなのは、四隅か壁の面を使えたときだけ。3m より遠いと四隅のずれに負けやすい（試算）
             if (source == "front" || source == "corners, front" || (source.StartsWith("corners") && distance > 3.5f))
                 status += "  Direction may be off. Scan again within 3 m";

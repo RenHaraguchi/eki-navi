@@ -48,6 +48,9 @@ namespace EkiNavi.Route
         bool hasCameraYaw;
         // 横向きで撮って合わせたあと、縦に戻るのを待っている。縦に戻ったら向きを AR のカメラで合わせ直す
         bool waitingForPortrait;
+        [Tooltip("経路の近くを経路の向きに歩いているとき、位置と向きを経路に寄せる")]
+        [SerializeField] bool followRoute = true;
+        RoutePath path;
         float portraitSince = -1f;
         const float PortraitHoldSeconds = 0.3f;
         GUIStyle style;
@@ -101,6 +104,26 @@ namespace EkiNavi.Route
             aligned = true;
             waitingForPortrait = ImageTurns.Choose(cameraTransform.rotation) != ImageTurn.None;
             portraitSince = -1f;
+        }
+
+        /// <summary>
+        /// 経路の近くを経路の向きに歩いているなら、位置と向きを経路に少しずつ寄せる（RouteFollower）。
+        /// 看板で合わせたときの向きのずれで、道なりに歩いても「外れた」と出るのを防ぐ。
+        /// </summary>
+        void FollowRoute(int steps)
+        {
+            if (!followRoute || route == null || route.LocalPoints == null || route.LocalPoints.Count < 2) return;
+            if (path == null)
+            {
+                var points = new System.Collections.Generic.List<Vector2>();
+                foreach (var p in route.LocalPoints) points.Add(new Vector2(p.x, p.z));
+                path = new RoutePath(points);
+            }
+            if (RouteFollower.Follow(path, reckoning.Position, heading.HeadingDeg, steps, out var position, out var headingDeg))
+            {
+                reckoning.MoveTo(position);
+                heading.Reset(headingDeg);
+            }
         }
 
         /// <summary>縦に戻ったのを見て、向きを AR のカメラで合わせ直す。</summary>
@@ -164,7 +187,11 @@ namespace EkiNavi.Route
             {
                 int steps = motion.Steps;
                 if (steps < lastSteps) lastSteps = steps; // RouteMotionGuard が数え直した
-                if (aligned && steps > lastSteps) reckoning.Advance(steps - lastSteps, heading.HeadingDeg, motion.StrideMeters);
+                if (aligned && steps > lastSteps)
+                {
+                    reckoning.Advance(steps - lastSteps, heading.HeadingDeg, motion.StrideMeters);
+                    FollowRoute(steps - lastSteps);
+                }
                 lastSteps = steps;
             }
         }
