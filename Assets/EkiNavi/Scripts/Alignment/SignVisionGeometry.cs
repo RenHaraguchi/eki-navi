@@ -99,8 +99,20 @@ namespace EkiNavi.Alignment
             horizontalNormal = Vector2.zero;
             if (yMax <= yMin || xMax <= xMin) return false;
             float cx = (xMin + xMax) * 0.5f;
-            if (!TryLocateVerticalEdge(view, new Vector2(cx, yMin), new Vector2(cx, yMax), signHeightMeters, out signPosition))
-                return false;
+            return TryLocateFromVerticalLine(view, new Vector2(cx, yMin), new Vector2(cx, yMax), signHeightMeters,
+                out signPosition, out horizontalNormal);
+        }
+
+        /// <summary>
+        /// 板の中央の縦の線（上端と下端の画像の点）から板の位置を求め、向きは正面から撮ったとみなす。
+        /// 端末を横に倒して撮ると、板の縦の線は画像の中で横に見えるので、外枠ではなく2点で渡す。
+        /// </summary>
+        public static bool TryLocateFromVerticalLine(
+            CaptureView view, Vector2 top, Vector2 bottom, float signHeightMeters,
+            out Vector3 signPosition, out Vector2 horizontalNormal)
+        {
+            horizontalNormal = Vector2.zero;
+            if (!TryLocateVerticalEdge(view, top, bottom, signHeightMeters, out signPosition)) return false;
             return TryFacingCamera(view.Position, signPosition, out horizontalNormal);
         }
 
@@ -168,7 +180,10 @@ namespace EkiNavi.Alignment
             float s = s2 > 0f ? Mathf.Sqrt(s2) : 0f; // 横幅より広く見えるときは、正面とみなす
             // 辺の見かけの長さ h に対して、四隅のずれ δ は距離に δ/h の割合で効く。
             // 左右の距離の差がその割合より小さければ、どちらが手前か言い切れない
-            float edgeHeight = (Mathf.Abs(bottomLeft.y - topLeft.y) + Mathf.Abs(bottomRight.y - topRight.y)) * 0.5f;
+            // 辺の長さは画像の縦に対する割合で測る。端末を横に倒して撮ると縦の辺が画像の横向きに見えるので、
+            // 縦の差だけでなく、横の差も縦横比で直して足す
+            float aspect = AspectOf(view.Projection);
+            float edgeHeight = (ImageLength(topLeft, bottomLeft, aspect) + ImageLength(topRight, bottomRight, aspect)) * 0.5f;
             float relativeDifference = (dLeft - dRight) / dm;
             sideKnown = edgeHeight > 0f && Mathf.Abs(relativeDifference) >= minEdgeDifference / edgeHeight;
             if (!sideKnown) s = 0f; // 左右を決められないので、正面とみなす
@@ -228,6 +243,19 @@ namespace EkiNavi.Alignment
             // 法線はカメラ側を向ける
             horizontalNormal = facing > 0f ? -n : n;
             return true;
+        }
+
+        /// <summary>画像の横 ÷ 縦（projection から）。</summary>
+        static float AspectOf(Matrix4x4 projection)
+        {
+            return Mathf.Abs(projection.m00) > 1e-6f ? projection.m11 / projection.m00 : 1f;
+        }
+
+        /// <summary>画像の2点の間の長さ（画像の縦を 1 とした割合）。</summary>
+        static float ImageLength(Vector2 a, Vector2 b, float aspect)
+        {
+            float dx = (b.x - a.x) * aspect, dy = b.y - a.y;
+            return Mathf.Sqrt(dx * dx + dy * dy);
         }
 
         static bool TryFacingCamera(Vector3 cameraPosition, Vector3 signPosition, out Vector2 horizontalNormal)
