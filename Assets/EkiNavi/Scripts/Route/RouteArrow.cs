@@ -39,6 +39,8 @@ namespace EkiNavi.Route
         // 3m だと、看板の位置や経路の線の数 m のずれだけで「外れた」と出たので 6m にした（2026-11-09 の現地の試験）
         [SerializeField] float offRouteDistance = 6f;
         [SerializeField] float arrivalRadius = 5f;
+        [Tooltip("着いたとみなす、経路からの横の距離の上限（m）。外れの判定とは別に、狭くしておく")]
+        [SerializeField] float arrivalLateral = 3f;
         [SerializeField] float turnAngleThreshold = 30f;
 
         [Header("開発用")]
@@ -73,7 +75,8 @@ namespace EkiNavi.Route
         /// <summary>画面の下の英語の案内文を出すか（EkiNaviUI があるときは隠す）。</summary>
         public bool ShowText { get => showText; set => showText = value; }
         /// <summary>横向きで撮って合わせ、縦に戻すのを待っている（矢印は出さない）。</summary>
-        public bool WaitingForPortrait => tracker != null && tracker.WaitingForPortrait;
+        // 経路を隠しているとき（位置を見失った）は、縦に戻す案内ではなく見失った案内を出す
+        public bool WaitingForPortrait => tracker != null && tracker.WaitingForPortrait && route != null && route.IsVisible;
 
         /// <summary>着いた状態を消す（UI で最初に戻ったとき）。</summary>
         public void ResetArrival() => IsArrived = false;
@@ -138,7 +141,7 @@ namespace EkiNavi.Route
             var target = path.GuideTarget(position, lookahead, offRouteDistance, out var projection);
             float remaining = path.Length - projection.Along;
 
-            if (remaining <= arrivalRadius && projection.DistanceFromRoute <= offRouteDistance)
+            if (remaining <= arrivalRadius && projection.DistanceFromRoute <= arrivalLateral)
             {
                 arrow.SetActive(false);
                 guidance = "Arrived";
