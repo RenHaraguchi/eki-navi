@@ -37,7 +37,7 @@ namespace EkiNavi.Route
 
         [Header("画像（数値は仮）")]
         [Tooltip("送る画像の長辺（px）。大きいほど遠くの文字が読めるが、送るのに時間がかかる")]
-        // 画面と同じ解像度で送る（1280 より小さい文字が読めた。2026-11-09 の試験）
+        // 小さい文字を読みやすくするため、画面と同じ解像度で送る（2026-11-09 の試験で 1280 から上げた）
         [SerializeField] int maxLongSide = 1920;
         [Range(30, 95)]
         [SerializeField] int jpegQuality = 80;
