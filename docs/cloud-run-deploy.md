@@ -58,6 +58,7 @@ gcloud run deploy eki-navi --source . --region asia-northeast1 \
 
 - `--max-instances 3` は費用の上限のために必ず付けます
 - 回数の上限はインスタンスごとに `GEMINI_RATE_PER_MINUTE`（1 分あたり、既定 60 回）と `GEMINI_DAILY_LIMIT`（1 日あたり、既定 1000 回）で決まります。変えるときは `--set-env-vars` に足します
+- アプリからの要求だけを受け付けるには、Play Integrity API を有効にし（`gcloud services enable playintegrity.googleapis.com`）、`INTEGRITY_MODE=log` で出してから、ログで `Play Integrity: ... ok=True` を確かめて `enforce` に切り替えます。切り替えは `gcloud run services update eki-navi --region asia-northeast1 --update-env-vars INTEGRITY_MODE=enforce` だけで、ビルドし直しは要りません
 - 終わると、`Service URL: https://eki-navi-xxxx.asia-northeast1.run.app` のように URL が出ます。これをアプリに入れます
 
 ## 5. 動いているか確かめる

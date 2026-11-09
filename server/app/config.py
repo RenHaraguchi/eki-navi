@@ -14,6 +14,9 @@ DEFAULT_DAILY_LIMIT = 1000
 DEFAULT_RATE_PER_MINUTE = 600
 DEFAULT_GEMINI_RATE_PER_MINUTE = 60
 BACKENDS = ("stub", "apikey", "vertex")
+INTEGRITY_MODES = ("off", "log", "enforce")
+DEFAULT_INTEGRITY_PACKAGE = "com.ekinavi.app"
+DEFAULT_INTEGRITY_MAX_AGE_SECONDS = 600.0
 
 
 class ConfigError(Exception):
@@ -37,6 +40,10 @@ class Settings:
     pack_path: Path = DEFAULT_PACK_PATH
     video_url: str = ""
     apk_url: str = ""
+    integrity_mode: str = "off"
+    integrity_package: str = DEFAULT_INTEGRITY_PACKAGE
+    integrity_cert_digests: tuple[str, ...] = ()
+    integrity_max_age_seconds: float = DEFAULT_INTEGRITY_MAX_AGE_SECONDS
 
 
 def _safe_link(url: str) -> str:
@@ -60,6 +67,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     backend = source.get("GEMINI_BACKEND", "stub")
     if backend not in BACKENDS:
         raise ConfigError(f"GEMINI_BACKEND は {BACKENDS} のどれかにしてください")
+    integrity_mode = source.get("INTEGRITY_MODE", "off")
+    if integrity_mode not in INTEGRITY_MODES:
+        raise ConfigError(f"INTEGRITY_MODE は {INTEGRITY_MODES} のどれかにしてください")
     settings = Settings(
         gemini_backend=backend,
         gemini_api_key=source.get("GEMINI_API_KEY", ""),
@@ -78,6 +88,16 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         pack_path=Path(source.get("PACK_PATH", str(DEFAULT_PACK_PATH))),
         video_url=_safe_link(source.get("DEMO_VIDEO_URL", "")),
         apk_url=_safe_link(source.get("DEMO_APK_URL", "")),
+        integrity_mode=integrity_mode,
+        integrity_package=source.get("INTEGRITY_PACKAGE", DEFAULT_INTEGRITY_PACKAGE),
+        integrity_cert_digests=tuple(
+            item.strip()
+            for item in source.get("INTEGRITY_CERT_SHA256", "").split(",")
+            if item.strip()
+        ),
+        integrity_max_age_seconds=float(
+            source.get("INTEGRITY_MAX_AGE_SECONDS", DEFAULT_INTEGRITY_MAX_AGE_SECONDS)
+        ),
     )
     if backend == "apikey" and not settings.gemini_api_key:
         raise ConfigError("GEMINI_BACKEND=apikey には GEMINI_API_KEY が必要です")
