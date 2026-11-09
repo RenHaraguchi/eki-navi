@@ -68,6 +68,8 @@ namespace EkiNavi.Route
         /// <summary>経路から外れているか、経路までの距離（m）。</summary>
         public bool IsOffRoute { get; private set; }
         public float OffRouteMeters { get; private set; }
+        /// <summary>利用者の向きが、矢印の向きから大きくずれているか。</summary>
+        public bool IsFacingAway { get; private set; }
         /// <summary>画面の下の英語の案内文を出すか（EkiNaviUI があるときは隠す）。</summary>
         public bool ShowText { get => showText; set => showText = value; }
         /// <summary>横向きで撮って合わせ、縦に戻すのを待っている（矢印は出さない）。</summary>
@@ -162,6 +164,7 @@ namespace EkiNavi.Route
                 if (worldDir.sqrMagnitude < 1e-6f) return;
                 yaw = Mathf.Atan2(worldDir.x, worldDir.z) * Mathf.Rad2Deg;
             }
+            IsFacingAway = FacingCheck.IsAway(IsFacingAway, FacingCheck.ErrorDeg(yaw, UserYaw()));
             currentYaw = hasYaw ? Mathf.LerpAngle(currentYaw, yaw, 1f - Mathf.Exp(-turnSpeed * Time.deltaTime)) : yaw;
             hasYaw = true;
 
@@ -177,6 +180,16 @@ namespace EkiNavi.Route
             arrow.SetActive(true);
 
             guidance = Describe(projection, remaining);
+        }
+
+        /// <summary>利用者が向いている方向（度）。真下や真上を向いているときは、カメラの上の向きで見る。</summary>
+        float UserYaw()
+        {
+            var forward = cameraTransform.forward;
+            var direction = Mathf.Abs(forward.y) > 0.85f
+                ? cameraTransform.up * (forward.y < 0f ? 1f : -1f)
+                : forward;
+            return Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
         }
 
         string Describe(RouteProjection projection, float remaining)

@@ -21,9 +21,9 @@ namespace EkiNavi.Route
     /// 選んだ言語は表示の文言にだけ使い、駅と行き先は今は見た目だけ（経路はシーンの経路のまま）。
     /// 開発用の表示（DevOverlay）を出している間は、これまでの英語の表示も出す。
     /// </summary>
-    public class EkiNaviUI : MonoBehaviour
+    public partial class EkiNaviUI : MonoBehaviour
     {
-        enum Screen { Setup, Scan, Guide, Arrived }
+        enum Screen { Stations, Line, Account, Scan, Guide, Arrived }
 
         // アイコン（#15）に合わせた色
         static readonly Color Navy = Hex("#0017C1");
@@ -42,72 +42,124 @@ namespace EkiNavi.Route
         [SerializeField] string goalNameJa = "小田急線のりば";
         [SerializeField] string goalNameEn = "Odakyu Line";
 
-        Screen screen = Screen.Setup;
+        Screen screen = Screen.Stations;
         string language = "ja";
-        int stationIndex = -1;  // 入力した駅名が見つかるまでは -1
+        int stationIndex = -1;  // 駅を選ぶまでは -1
         int destinationIndex;
         Font font;
-        Sprite rounded, circle;
+        Sprite rounded, circle, gear, barCorner;
         Transform root;
         readonly Dictionary<Screen, GameObject> screens = new Dictionary<Screen, GameObject>();
         readonly List<Action> refreshers = new List<Action>();
+        readonly List<GridLayoutGroup> stationGrids = new List<GridLayoutGroup>();
 
         // 読み取りと案内の画面で毎フレーム書き換える部品
         Text scanStatus, toastText, guideIcon, guideMain, guideSub, guideDestination;
-        GameObject scanStatusPill, toast, guideCard;
+        GameObject scanStatusPill, toast, guideCard, guideBar, guideOverlay;
+        Text overlayTitle, overlaySub;
         Image guideCardImage;
         RectTransform progressFill;
         Button scanButton;
         float toastUntil;
         string alignedSignName = "";
+        bool directionWarning;
+        bool hasGuide;  // 一度でも位置が合って案内を始めたか（読み取りの画面から案内へ戻れる）
+
+        /// <summary>案内の画面に出す内容。ふだんは RouteArrow から読む。</summary>
+        struct GuideInfo
+        {
+            public bool Guiding, Arrived, HasNextTurn, NextTurnIsRight, OffRoute, FacingAway, WaitingForPortrait;
+            public float RemainingMeters, TotalMeters, NextTurnMeters, OffRouteMeters;
+        }
+
+        // プレビュー（EkiNaviUI.Preview.cs）で表示の内容を差し替えるときに使う。ふだんは空のまま
+        GuideInfo? guideOverride;
+        string scanStatusOverride;
+        bool scanBusyOverride;
+
+        partial void UpdatePreview();
+        partial void PreviewScan();
+
+        const string LanguageKey = "ekinavi.language";
+        const float StationLabelHeight = 104f;
+        const float HeaderHeight = 220f;
 
         static readonly string[] Languages = { "ja", "en", "zh", "ko" };
         static readonly string[] LanguageLabels = { "日本語", "English", "中文", "한국어" };
-        // 駅の候補。読み（ひらがな・カタカナ）と英語でも見つかるようにする
-        static readonly (string ja, string en, bool ready, string[] aliases)[] Stations =
+        // 駅の一覧。地方ごとに並べる。ready が false の駅は「準備中」と出して押せないようにする
+        static readonly (string ja, string en, (string ja, string en, bool ready)[] stations)[] Regions =
         {
-            ("新宿", "Shinjuku", true, new[] { "新宿", "しんじゅく", "シンジュク", "shinjuku" }),
-            ("東京", "Tokyo", false, new[] { "東京", "とうきょう", "トウキョウ", "tokyo" }),
+            ("関東", "Kanto", new[]
+            {
+                ("東京", "Tokyo", false),
+                ("新宿", "Shinjuku", true),
+                ("池袋", "Ikebukuro", false),
+                ("渋谷", "Shibuya", false),
+            }),
+            ("関西", "Kansai", new[]
+            {
+                ("大阪", "Osaka", false),
+                ("京都", "Kyoto", false),
+            }),
         };
-        static readonly (string ja, string en, string color)[] Destinations =
+        static readonly (string ja, string en, bool ready)[] Stations = Regions.SelectMany(r => r.stations).ToArray();
+        // 路線の色は仮の値。小田急と京王は公式の資料の記号から読み取った色、都営と東京メトロは未確認
+        static readonly (string ja, string en, string color, string code)[] Destinations =
         {
-            ("小田急線", "Odakyu Line", "#2288CC"),
-            ("京王線", "Keio Line", "#DD0077"),
-            ("都営新宿線", "Toei Shinjuku Line", "#6CBB5A"),
-            ("東京メトロ丸ノ内線", "Marunouchi Line", "#F62E36"),
+            ("小田急線", "Odakyu Line", "#008CD0", "OH"),
+            ("京王線", "Keio Line", "#C60076", "KO"),
+            ("都営新宿線", "Toei Shinjuku Line", "#6CBB5A", "S"),
+            ("東京メトロ丸ノ内線", "Marunouchi Line", "#F62E36", "M"),
         };
 
         // 文言（言語は日本語と英語。ほかの言語は英語で出す）
         static readonly Dictionary<string, (string ja, string en)> Words = new Dictionary<string, (string, string)>
         {
             ["app"] = ("駅ナビAR", "Eki Navi AR"),
-            ["tagline"] = ("駅の中の乗り換えを、カメラで案内します", "Camera guidance for transfers inside the station"),
-            ["language"] = ("1. 言語", "1. Language"),
-            ["station"] = ("2. 駅", "2. Station"),
-            ["stationPlaceholder"] = ("駅名を入力（例: 新宿）", "Enter a station (e.g. Shinjuku)"),
-            ["stationNotFound"] = ("この駅はまだ案内できません", "This station is not supported yet"),
-            ["stationSelected"] = ("{0}駅を選びました", "Selected {0} Station"),
-            ["destination"] = ("3. 乗り換える路線", "3. Line to transfer to"),
+            ["destination"] = ("乗り換える路線", "Line to transfer to"),
             ["soon"] = ("準備中", "Coming soon"),
             ["start"] = ("案内を始める", "Start"),
             ["scanStep"] = ("現在地を確かめます", "Find where you are"),
             ["scanHint"] = ("近くの案内板にカメラを向けて\n「読み取る」を押してください", "Point the camera at a nearby sign\nand tap Scan"),
             ["scan"] = ("読み取る", "Scan"),
             ["scanning"] = ("読み取り中…", "Scanning..."),
-            ["back"] = ("← 設定", "← Settings"),
+            ["back"] = ("← 路線を選ぶ", "← Select line"),
+            ["pickStation"] = ("駅を選ぶ", "Select a station"),
+            ["stationTitle"] = ("{0}駅", "{0} Station"),
+            ["account"] = ("アカウント設定", "Account settings"),
+            ["accountSection"] = ("アカウント", "Account"),
+            ["accountName"] = ("ゲスト（仮のアカウント）", "Guest (temporary)"),
+            ["languageTitle"] = ("言語", "Language"),
+            ["aboutSection"] = ("このアプリについて", "About this app"),
+            ["privacy"] = ("プライバシーポリシー", "Privacy policy"),
+            ["terms"] = ("利用規約", "Terms of use"),
+            ["licenses"] = ("オープンソースライセンス", "Open source licenses"),
+            ["contact"] = ("お問い合わせ", "Contact"),
+            ["version"] = ("バージョン", "Version"),
+            ["backToGuide"] = ("← 案内に戻る", "← Back to guide"),
+            ["scanHold"] = ("そのまま動かさないでください", "Hold still..."),
+            ["scanChecking"] = ("案内板を確かめています…", "Checking the sign..."),
+            ["scanNoSign"] = ("登録された案内板が見つかりません。\n案内板にカメラを向けて、もう一度押してください", "No registered sign found.\nPoint at a sign and try again"),
+            ["scanUnavailable"] = ("今は案内板を確かめられません。もう一度試してください", "Cannot check the sign now. Try again"),
+            ["scanTooFar"] = ("案内板をうまく測れません。近づいてもう一度試してください", "Could not measure the sign. Move closer and try again"),
+            ["scanFailed"] = ("読み取れませんでした。もう一度試してください", "Could not scan. Try again"),
+            ["directionTitle"] = ("向きがずれているかもしれません", "The direction may be off"),
+            ["directionSub"] = ("3 m 以内でもう一度読み取ってください", "Scan again within 3 m"),
             ["located"] = ("現在地が分かりました", "Found your location"),
             ["turnIn"] = ("{0} m 先を{1}へ", "Turn {1} in {0} m"),
             ["left"] = ("左", "left"),
             ["right"] = ("右", "right"),
+            ["faceArrow"] = ("矢印の方向を\n向いてください", "Turn to face the arrow"),
             ["straight"] = ("このまま まっすぐ", "Go straight"),
             ["toGoal"] = ("{0}まで あと {1} m", "{1} m to {0}"),
             ["offRoute"] = ("経路から外れています", "You are off the route"),
-            ["upright"] = ("スマホを縦に戻してください", "Hold your phone upright"),
+            ["upright"] = ("スマホを縦に\n戻してください", "Hold your phone upright"),
             ["uprightSub"] = ("縦に戻すと矢印が出ます", "The arrow appears when the phone is upright"),
             ["offRouteSub"] = ("矢印の向きに戻ってください（{0} m）", "Follow the arrow back ({0} m)"),
-            ["destinationLabel"] = ("行き先: {0}", "To: {0}"),
+            ["platform"] = ("のりば", ""),
             ["rescan"] = ("読み取り直す", "Rescan"),
-            ["lost"] = ("位置を見失いました。案内板を読み取り直してください", "Lost your position. Scan a sign again"),
+            ["lost"] = ("位置を見失いました", "Lost your position"),
+            ["lostSub"] = ("案内板を読み取り直してください", "Scan a sign again"),
             ["arrived"] = ("{0}に\n着きました", "You have arrived at\n{0}"),
             ["arrivedSub"] = ("おつかれさまでした", "Have a nice trip"),
             ["restart"] = ("最初に戻る", "Back to start"),
@@ -124,9 +176,13 @@ namespace EkiNavi.Route
             font = LoadFont();
             rounded = RoundedSprite(48);
             circle = RoundedSprite(128);
+            gear = GearSprite();
+            barCorner = RoundedSprite(12);  // バーの高さ 24 の半分。端が半円になる
+            string savedLanguage = PlayerPrefs.GetString(LanguageKey, "ja");
+            if (Languages.Contains(savedLanguage)) language = savedLanguage;
             EnsureEventSystem();
             Build();
-            Show(Screen.Setup);
+            Show(Screen.Stations);
         }
 
         void OnEnable()
@@ -143,6 +199,8 @@ namespace EkiNavi.Route
         {
             alignedSignName = sign != null ? sign.name : "";
             if (arrow != null) arrow.ResetArrival();
+            hasGuide = true;
+            directionWarning = vision != null && vision.DirectionUncertain;
             toastUntil = Time.unscaledTime + 3f;
             Show(Screen.Guide);
         }
@@ -154,6 +212,9 @@ namespace EkiNavi.Route
             if (vision != null) vision.ShowButton = dev;
             if (aligner != null) aligner.ShowStatus = dev;
             if (arrow != null) arrow.ShowText = dev;
+
+            UpdatePreview();
+            FitStationGrids();
 
             switch (screen)
             {
@@ -168,27 +229,52 @@ namespace EkiNavi.Route
 
         void UpdateScan()
         {
-            bool busy = vision != null && vision.Busy;
+            bool busy = scanBusyOverride || (vision != null && vision.Busy);
             scanButton.interactable = !busy;
             scanButton.GetComponentInChildren<Text>().text = busy ? T("scanning") : T("scan");
-            string status = vision != null ? vision.StatusForUser : "";
+            string status = scanStatusOverride ?? (vision != null ? ScanMessage(vision.Status) : "");
             scanStatusPill.SetActive(!string.IsNullOrEmpty(status));
             scanStatus.text = status;
         }
 
+        /// <summary>読み取りの結果（開発用の英語の文）を、利用者向けの文にする。開発用の文はそのまま出さない。</summary>
+        string ScanMessage(string status)
+        {
+            if (string.IsNullOrEmpty(status) || status.StartsWith("Aligned at")) return "";
+            if (status.StartsWith("Hold still")) return T("scanHold");
+            if (status.StartsWith("Sending")) return T("scanChecking");
+            if (status.StartsWith("No known sign")) return T("scanNoSign");
+            if (status.StartsWith("Server error") || status.StartsWith("Sign check unavailable")) return T("scanUnavailable");
+            if (status.Contains("box looks wrong")) return T("scanTooFar");
+            return T("scanFailed");
+        }
+
         void UpdateGuide()
         {
-            toast.SetActive(Time.unscaledTime < toastUntil);
-            if (arrow == null) return;
-            if (arrow.IsArrived)
+            if (guideOverride == null && arrow == null) return;
+            var guide = guideOverride ?? ReadArrow();
+            if (guide.Arrived)
             {
                 Show(Screen.Arrived);
                 return;
             }
 
-            guideDestination.text = string.Format(T("destinationLabel"), Goal);
+            // 読み取り直してほしいときは、グレーの全面表示にする（案内のカードと下の帯は隠す）
+            bool overlay = directionWarning || (!guide.Guiding && !guide.WaitingForPortrait);
+            guideOverlay.SetActive(overlay);
+            guideCard.SetActive(!overlay);
+            guideBar.SetActive(!overlay);
+            toast.SetActive(!overlay && Time.unscaledTime < toastUntil);
+            if (overlay)
+            {
+                overlayTitle.text = T(directionWarning ? "directionTitle" : "lost");
+                overlaySub.text = T(directionWarning ? "directionSub" : "lostSub");
+                return;
+            }
 
-            if (arrow.WaitingForPortrait)
+            guideDestination.text = T("platform");
+
+            if (guide.WaitingForPortrait)
             {
                 guideCardImage.color = Navy;
                 guideIcon.text = "↻";
@@ -196,42 +282,57 @@ namespace EkiNavi.Route
                 guideSub.text = T("uprightSub");
                 return;
             }
-            if (!arrow.IsGuiding)
-            {
-                guideCardImage.color = SubInk;
-                guideIcon.text = "!";
-                guideMain.text = T("lost");
-                guideSub.text = "";
-                return;
-            }
-            if (arrow.IsOffRoute)
+            if (guide.OffRoute)
             {
                 guideCardImage.color = Warning;
                 guideIcon.text = "!";
                 guideMain.text = T("offRoute");
-                guideSub.text = string.Format(T("offRouteSub"), Mathf.RoundToInt(arrow.OffRouteMeters));
+                guideSub.text = string.Format(T("offRouteSub"), Mathf.RoundToInt(guide.OffRouteMeters));
                 return;
             }
             // 進み具合は、案内できている間だけ更新する（見失っている間は直前のまま）
-            float total = Mathf.Max(1f, arrow.TotalMeters);
-            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - arrow.RemainingMeters / total), 1f);
+            float total = Mathf.Max(1f, guide.TotalMeters);
+            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - guide.RemainingMeters / total), 1f);
             guideCardImage.color = Navy;
-            if (arrow.HasNextTurn && arrow.NextTurnMeters < 60f)
+            if (guide.FacingAway)
             {
-                guideIcon.text = arrow.NextTurnIsRight ? "→" : "←";
-                guideMain.text = string.Format(T("turnIn"), Mathf.RoundToInt(arrow.NextTurnMeters), T(arrow.NextTurnIsRight ? "right" : "left"));
+                guideIcon.text = "!";
+                guideMain.text = T("faceArrow");
+            }
+            else if (guide.HasNextTurn && guide.NextTurnMeters < 60f)
+            {
+                guideIcon.text = guide.NextTurnIsRight ? "→" : "←";
+                guideMain.text = string.Format(T("turnIn"), Mathf.RoundToInt(guide.NextTurnMeters), T(guide.NextTurnIsRight ? "right" : "left"));
             }
             else
             {
                 guideIcon.text = "↑";
                 guideMain.text = T("straight");
             }
-            guideSub.text = string.Format(T("toGoal"), Goal, Mathf.RoundToInt(arrow.RemainingMeters));
+            guideSub.text = string.Format(T("toGoal"), Goal, Mathf.RoundToInt(guide.RemainingMeters));
         }
+
+        GuideInfo ReadArrow() => new GuideInfo
+        {
+            Guiding = arrow.IsGuiding,
+            Arrived = arrow.IsArrived,
+            HasNextTurn = arrow.HasNextTurn,
+            NextTurnIsRight = arrow.NextTurnIsRight,
+            OffRoute = arrow.IsOffRoute,
+            FacingAway = arrow.IsFacingAway,
+            WaitingForPortrait = arrow.WaitingForPortrait,
+            RemainingMeters = arrow.RemainingMeters,
+            TotalMeters = arrow.TotalMeters,
+            NextTurnMeters = arrow.NextTurnMeters,
+            OffRouteMeters = arrow.OffRouteMeters,
+        };
 
         void Show(Screen next)
         {
             screen = next;
+            // 読み取りの画面を開き直したときは、前の結果を残さない
+            if (next == Screen.Scan && vision != null && !vision.Busy) vision.ClearStatus();
+            if (next == Screen.Scan) directionWarning = false;
             foreach (var pair in screens) pair.Value.SetActive(pair.Key == next);
             Refresh();
         }
@@ -251,37 +352,211 @@ namespace EkiNavi.Route
             scaler.matchWidthOrHeight = 0.5f;
             root = canvasGo.transform;
 
-            screens[Screen.Setup] = BuildSetup();
+            screens[Screen.Stations] = BuildStations();
+            screens[Screen.Line] = BuildLine();
+            screens[Screen.Account] = BuildAccount();
             screens[Screen.Scan] = BuildScan();
             screens[Screen.Guide] = BuildGuide();
             screens[Screen.Arrived] = BuildArrived();
         }
 
-        GameObject BuildSetup()
+        // 画面の上の帯。onBack があれば左に戻るボタンを出す
+        void PageHeader(Transform page, Func<string> title, Action onBack)
         {
-            var page = Panel(root, "Setup", Paper, null);
+            var header = Panel(page, "Header", Navy, null);
+            Anchor(header, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -HeaderHeight), Vector2.zero);
+            var label = Label(header.transform, "", 56, Color.white, FontStyle.Bold, TextAnchor.LowerLeft);
+            Anchor(label.gameObject, Vector2.zero, Vector2.one, new Vector2(onBack == null ? 56 : 140, 44), new Vector2(-56, -80));
+            refreshers.Add(() => label.text = title());
+            if (onBack == null) return;
+            var back = TextButton(header.transform, onBack);
+            Anchor(back.gameObject, Vector2.zero, Vector2.zero, new Vector2(30, 26), new Vector2(130, 126));
+            var arrowLabel = back.GetComponentInChildren<Text>();
+            arrowLabel.text = "←";
+            arrowLabel.fontSize = 60;
+            arrowLabel.alignment = TextAnchor.MiddleCenter;
+        }
+
+        GameObject BuildStations()
+        {
+            var page = Panel(root, "Stations", Color.white, null);
             Stretch(page);
+            PageHeader(page.transform, () => T("pickStation"), null);
 
-            // 上の帯
-            var header = Panel(page.transform, "Header", Navy, null);
-            Anchor(header, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -420), new Vector2(0, 0));
-            var title = Label(header.transform, "", 84, Color.white, FontStyle.Bold, TextAnchor.LowerLeft);
-            Anchor(title.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(64, 150), new Vector2(-64, -80));
-            var tagline = Label(header.transform, "", 36, new Color(1, 1, 1, 0.8f), FontStyle.Normal, TextAnchor.UpperLeft);
-            Anchor(tagline.gameObject, new Vector2(0, 0), new Vector2(1, 0), new Vector2(64, 50), new Vector2(-64, 140));
-            refreshers.Add(() => { title.text = T("app"); tagline.text = T("tagline"); });
+            // 駅が増えても入るよう、縦にスクロールできるようにする
+            var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(RectMask2D), typeof(Image), typeof(ScrollRect));
+            scrollGo.transform.SetParent(page.transform, false);
+            Anchor(scrollGo, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0, -HeaderHeight));
+            scrollGo.GetComponent<Image>().color = new Color(0, 0, 0, 0);
 
-            // 中身
+            var content = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            content.transform.SetParent(scrollGo.transform, false);
+            var contentRect = (RectTransform)content.transform;
+            contentRect.anchorMin = new Vector2(0, 1);
+            contentRect.anchorMax = new Vector2(1, 1);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.offsetMin = Vector2.zero;
+            contentRect.offsetMax = Vector2.zero;
+            var layout = content.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(40, 40, 30, 220);
+            layout.spacing = 20;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandHeight = false;
+            content.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var scroll = scrollGo.GetComponent<ScrollRect>();
+            scroll.content = contentRect;
+            scroll.viewport = (RectTransform)scrollGo.transform;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+
+            int stationNumber = 0;
+            foreach (var region in Regions)
+            {
+                RegionTitle(content.transform, region.ja, region.en);
+                var gridGo = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup), typeof(LayoutElement));
+                gridGo.transform.SetParent(content.transform, false);
+                // 四角の大きさから幅が決まって広がり続けないよう、幅は親に合わせる
+                var gridElement = gridGo.GetComponent<LayoutElement>();
+                gridElement.minWidth = 0f;
+                gridElement.preferredWidth = 0f;
+                gridElement.flexibleWidth = 1f;
+                var grid = gridGo.GetComponent<GridLayoutGroup>();
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = 4;
+                grid.spacing = new Vector2(20, 30);
+                grid.cellSize = new Vector2(200, 200 + StationLabelHeight);
+                stationGrids.Add(grid);
+                foreach (var _ in region.stations) StationTile(gridGo.transform, stationNumber++);
+            }
+
+            var settings = Button(page.transform, Color.white, circle, () => Show(Screen.Account));
+            Anchor(settings.gameObject, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-180, 60), new Vector2(-40, 200));
+            var shadow = settings.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0, 0, 0, 0.25f);
+            shadow.effectDistance = new Vector2(0, -4);
+            var gearImage = Panel(settings.transform, "Gear", Ink, gear);
+            gearImage.GetComponent<Image>().type = Image.Type.Simple;
+            Stretch(gearImage, 28);
+            return page;
+        }
+
+        void RegionTitle(Transform parent, string ja, string en)
+        {
+            var go = new GameObject("Region", typeof(RectTransform), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<LayoutElement>().preferredHeight = 90;
+            var left = Label(go.transform, ja, 46, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Stretch(left.gameObject);
+            var right = Label(go.transform, en, 32, SubInk, FontStyle.Normal, TextAnchor.MiddleRight);
+            Stretch(right.gameObject);
+            var line = Panel(go.transform, "Line", Line, null);
+            Anchor(line, Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 3));
+        }
+
+        // 写真の代わりに、色の四角と駅名の 1 文字目を出す（写真はあとで差し替える）
+        void StationTile(Transform parent, int index)
+        {
+            var station = Stations[index];
+            var go = new GameObject("Station", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+            var button = go.GetComponent<Button>();
+            button.interactable = station.ready;
+            button.transition = Selectable.Transition.None;
+            button.onClick.AddListener(() =>
+            {
+                stationIndex = index;
+                Show(Screen.Line);
+            });
+
+            var photo = Panel(go.transform, "Photo", station.ready ? Blue : Hex("#C9CEDA"), rounded);
+            Anchor(photo, Vector2.zero, Vector2.one, new Vector2(0, StationLabelHeight), Vector2.zero);
+            if (station.ready)
+            {
+                var initial = Label(photo.transform, station.ja.Substring(0, 1), 96, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+                Stretch(initial.gameObject);
+            }
+            else
+            {
+                var soon = Label(photo.transform, "", 32, SubInk, FontStyle.Bold, TextAnchor.MiddleCenter);
+                Stretch(soon.gameObject);
+                refreshers.Add(() => soon.text = T("soon"));
+            }
+
+            var ja = Label(go.transform, station.ja, 36, station.ready ? Ink : SubInk, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Anchor(ja.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 50), new Vector2(-6, StationLabelHeight - 4));
+            var en = Label(go.transform, station.en, 28, station.ready ? Ink : SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
+            Anchor(en.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 50));
+        }
+
+        // 画面の幅に合わせて、駅の四角が 4 列でちょうど並ぶ大きさにする
+        void FitStationGrids()
+        {
+            if (screen != Screen.Stations) return;
+            foreach (var grid in stationGrids)
+            {
+                float width = ((RectTransform)grid.transform).rect.width;
+                if (width <= 0f) continue;
+                float cell = (width - grid.spacing.x * 3f) / 4f;
+                var size = new Vector2(cell, cell + StationLabelHeight);
+                if (grid.cellSize != size) grid.cellSize = size;
+            }
+        }
+
+        GameObject BuildLine()
+        {
+            var page = Panel(root, "Line", Paper, null);
+            Stretch(page);
+            PageHeader(page.transform, () => stationIndex >= 0
+                ? string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en)
+                : "", () => Show(Screen.Stations));
+
             var body = new GameObject("Body", typeof(RectTransform), typeof(VerticalLayoutGroup));
             body.transform.SetParent(page.transform, false);
-            Anchor(body, new Vector2(0, 0), new Vector2(1, 1), new Vector2(56, 260), new Vector2(-56, -470));
+            Anchor(body, Vector2.zero, Vector2.one, new Vector2(56, 260), new Vector2(-56, -HeaderHeight - 40));
             var layout = body.GetComponent<VerticalLayoutGroup>();
             layout.spacing = 22;
             layout.childControlHeight = false;
             layout.childControlWidth = true;
             layout.childForceExpandHeight = false;
 
-            SectionTitle(body.transform, "language");
+            SectionTitle(body.transform, "destination");
+            for (int i = 0; i < Destinations.Length; i++)
+            {
+                int index = i;
+                var item = Choice(body.transform, "", 40, () => { destinationIndex = index; Refresh(); }, 120, TextAnchor.MiddleLeft);
+                var badge = LineBadge(item.transform, i, 36, 72);
+                Anchor(badge, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(30, -36), new Vector2(-30, 36));
+                refreshers.Add(() => Highlight(item, destinationIndex == index));
+            }
+
+            var start = PrimaryButton(page.transform, () => Show(Screen.Scan));
+            Anchor(start.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
+            refreshers.Add(() => start.GetComponentInChildren<Text>().text = T("start"));
+            return page;
+        }
+
+        GameObject BuildAccount()
+        {
+            var page = Panel(root, "Account", Paper, null);
+            Stretch(page);
+            PageHeader(page.transform, () => T("account"), () => Show(Screen.Stations));
+
+            var body = new GameObject("Body", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            body.transform.SetParent(page.transform, false);
+            Anchor(body, Vector2.zero, Vector2.one, new Vector2(56, 40), new Vector2(-56, -HeaderHeight - 30));
+            var layout = body.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = 14;
+            layout.childControlHeight = false;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+
+            SectionTitle(body.transform, "accountSection");
+            InfoRow(body.transform, "accountName", null);
+
+            SectionTitle(body.transform, "languageTitle");
             var chips = Row(body.transform, 100, 16);
             for (int i = 0; i < Languages.Length; i++)
             {
@@ -289,96 +564,69 @@ namespace EkiNavi.Route
                 var chip = Choice(chips.transform, LanguageLabels[i], 34, () =>
                 {
                     language = Languages[index];
+                    PlayerPrefs.SetString(LanguageKey, language);
+                    PlayerPrefs.Save();
                     Refresh();
                 });
                 refreshers.Add(() => Highlight(chip, language == Languages[index]));
             }
 
-            SectionTitle(body.transform, "station");
-            var field = StationField(body.transform);
-            var placeholder = (Text)field.placeholder;
-
-            // 入力の途中（「しん」「shin」など）で出す候補。押すとその駅に決まる
-            var suggestions = Row(body.transform, 110, 16);
-            var suggestionButtons = new List<Button>();
-            for (int i = 0; i < Stations.Length; i++)
-            {
-                int index = i;
-                var card = Choice(suggestions.transform, "", 36, () =>
-                {
-                    if (!Stations[index].ready) return;
-                    field.SetTextWithoutNotify(language == "ja" ? Stations[index].ja : Stations[index].en);
-                    stationIndex = index;
-                    Refresh();
-                });
-                suggestionButtons.Add(card);
-            }
-            var stationNote = Label(body.transform, "", 30, SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
-            stationNote.rectTransform.sizeDelta = new Vector2(0, 50);
-
-            field.onValueChanged.AddListener(text =>
-            {
-                // 読みや英語がぴったり合えば、その場で駅を決める（準備中の駅は決めない）
-                int exact = FindStation(text, exactOnly: true);
-                stationIndex = exact >= 0 && Stations[exact].ready ? exact : -1;
-                Refresh();
-            });
-
-            // 乗り換える路線は、駅が決まってから出す
-            var destinationParts = new List<GameObject> { SectionTitle(body.transform, "destination") };
-            for (int i = 0; i < Destinations.Length; i++)
-            {
-                int index = i;
-                var item = Choice(body.transform, "", 40, () => { destinationIndex = index; Refresh(); }, 120, TextAnchor.MiddleLeft);
-                var label = item.GetComponentInChildren<Text>();
-                label.rectTransform.offsetMin = new Vector2(110, 16);
-                var badge = Panel(item.transform, "LineColor", Hex(Destinations[i].color), circle);
-                Anchor(badge, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(36, -26), new Vector2(88, 26));
-                destinationParts.Add(item.gameObject);
-                refreshers.Add(() =>
-                {
-                    label.text = language == "ja" ? Destinations[index].ja : Destinations[index].en;
-                    Highlight(item, destinationIndex == index);
-                });
-            }
-
-            refreshers.Add(() =>
-            {
-                placeholder.text = T("stationPlaceholder");
-                string text = field.text;
-                bool chosen = stationIndex >= 0;
-                bool any = false;
-                for (int i = 0; i < Stations.Length; i++)
-                {
-                    var st = Stations[i];
-                    // 決まっていないときだけ、入力の途中に合う駅を候補として出す
-                    bool show = !chosen && !string.IsNullOrWhiteSpace(text) && MatchesStation(i, text, exactOnly: false);
-                    suggestionButtons[i].gameObject.SetActive(show);
-                    any |= show;
-                    suggestionButtons[i].interactable = st.ready;
-                    suggestionButtons[i].GetComponentInChildren<Text>().text =
-                        (language == "ja" ? st.ja : st.en) + (st.ready ? "" : $"<size=26>（{T("soon")}）</size>");
-                    Highlight(suggestionButtons[i], false);
-                }
-                suggestions.SetActive(any);
-                if (chosen)
-                    stationNote.text = string.Format(T("stationSelected"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en);
-                else if (!string.IsNullOrWhiteSpace(text) && !any)
-                    stationNote.text = T("stationNotFound");
-                else
-                    stationNote.text = "";
-                stationNote.color = chosen ? Success : SubInk;
-                foreach (var part in destinationParts) part.SetActive(chosen);
-            });
-
-            var start = PrimaryButton(page.transform, () => { if (stationIndex >= 0) Show(Screen.Scan); });
-            Anchor(start.gameObject, new Vector2(0, 0), new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
-            refreshers.Add(() =>
-            {
-                start.GetComponentInChildren<Text>().text = T("start");
-                start.interactable = stationIndex >= 0;  // 駅が決まるまでは押せない
-            });
+            SectionTitle(body.transform, "aboutSection");
+            foreach (var key in new[] { "privacy", "terms", "licenses", "contact" })
+                InfoRow(body.transform, key, () => T("soon"));
+            InfoRow(body.transform, "version", () => Application.version);
             return page;
+        }
+
+        void InfoRow(Transform parent, string key, Func<string> value)
+        {
+            var row = Panel(parent, "Row", Color.white, rounded);
+            ((RectTransform)row.transform).sizeDelta = new Vector2(0, 108);
+            var left = Label(row.transform, "", 38, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Anchor(left.gameObject, Vector2.zero, Vector2.one, new Vector2(40, 0), new Vector2(-220, 0));
+            refreshers.Add(() => left.text = T(key));
+            if (value == null) return;
+            var right = Label(row.transform, "", 32, SubInk, FontStyle.Normal, TextAnchor.MiddleRight);
+            Anchor(right.gameObject, new Vector2(1, 0), Vector2.one, new Vector2(-220, 0), new Vector2(-40, 0));
+            refreshers.Add(() => right.text = value());
+        }
+
+        /// <summary>路線の記号を丸で囲んだものと、路線の色で囲んだ路線名を横に並べる。</summary>
+        GameObject LineBadge(Transform parent, int index, int fontSize, float height)
+        {
+            var line = Destinations[index];
+            var color = Hex(line.color);
+            var row = new GameObject("LineBadge", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent, false);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var ring = Panel(row.transform, "Code", color, circle);
+            var ringSize = ring.AddComponent<LayoutElement>();
+            ringSize.preferredWidth = height;
+            ringSize.preferredHeight = height;
+            var inner = Panel(ring.transform, "Inner", Color.white, circle);
+            Stretch(inner, height * 0.1f);
+            var code = Label(inner.transform, line.code, Mathf.RoundToInt(height * 0.4f), color, FontStyle.Bold, TextAnchor.MiddleCenter);
+            Stretch(code.gameObject);
+
+            var pill = Panel(row.transform, "Name", color, barCorner);
+            var pillSize = pill.AddComponent<LayoutElement>();
+            pillSize.preferredHeight = height;
+            var name = Label(pill.transform, "", fontSize, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Stretch(name.gameObject);
+            refreshers.Add(() =>
+            {
+                name.text = language == "ja" ? line.ja : line.en;
+                pillSize.preferredWidth = name.preferredWidth + 44f;
+            });
+            return row;
         }
 
         GameObject BuildScan()
@@ -396,9 +644,19 @@ namespace EkiNavi.Route
             Anchor(hint.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(48, 40), new Vector2(-48, -90));
             refreshers.Add(() => { step.text = T("scanStep"); hint.text = T("scanHint"); });
 
-            var back = TextButton(page.transform, () => Show(Screen.Setup));
+            var back = TextButton(page.transform, () => Show(Screen.Line));
             Anchor(back.gameObject, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -110), new Vector2(360, -20));
             refreshers.Add(() => back.GetComponentInChildren<Text>().text = T("back"));
+
+            // 読み取りに失敗しても、案内の途中なら案内へ戻れるようにする
+            var backToGuide = TextButton(page.transform, () => Show(Screen.Guide));
+            Anchor(backToGuide.gameObject, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-480, -110), new Vector2(-40, -20));
+            backToGuide.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleRight;
+            refreshers.Add(() =>
+            {
+                backToGuide.gameObject.SetActive(hasGuide);
+                backToGuide.GetComponentInChildren<Text>().text = T("backToGuide");
+            });
 
             // 案内板を入れる枠（四隅のかぎ）
             var frame = new GameObject("Frame", typeof(RectTransform));
@@ -415,7 +673,7 @@ namespace EkiNavi.Route
             // 読み取るボタン（丸）
             var ring = Panel(page.transform, "Ring", Color.white, circle);
             Anchor(ring, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-130, 110), new Vector2(130, 370));
-            scanButton = Button(ring.transform, Navy, circle, () => { if (vision != null) vision.Scan(); });
+            scanButton = Button(ring.transform, Navy, circle, () => { if (vision != null) vision.Scan(); else PreviewScan(); });
             Stretch(scanButton.gameObject, 14);
             var scanLabel = Label(scanButton.transform, "", 40, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(scanLabel.gameObject);
@@ -446,12 +704,15 @@ namespace EkiNavi.Route
 
             // 下の帯: 行き先、進み具合、読み取り直す
             var bar = Panel(page.transform, "Bottom", new Color(1, 1, 1, 0.95f), rounded);
+            guideBar = bar;
             Anchor(bar, new Vector2(0, 0), new Vector2(1, 0), new Vector2(40, 60), new Vector2(-40, 300));
-            guideDestination = Label(bar.transform, "", 36, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            Anchor(guideDestination.gameObject, new Vector2(0, 0.5f), new Vector2(0.62f, 1), new Vector2(44, 0), new Vector2(0, -20));
-            var track = Panel(bar.transform, "Track", Line, rounded);
+            // 案内先は今は小田急線に固定（路線の選択を経路につなぐときに切り替える）
+            var destination = LineBadge(bar.transform, 0, 30, 58);
+            Anchor(destination, new Vector2(0, 0.5f), new Vector2(0.62f, 1), new Vector2(44, 0), new Vector2(0, -20));
+            guideDestination = Label(destination.transform, "", 34, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            var track = Panel(bar.transform, "Track", Line, barCorner);
             Anchor(track, new Vector2(0, 0), new Vector2(1, 0), new Vector2(44, 50), new Vector2(-44, 74));
-            var fill = Panel(track.transform, "Fill", Blue, rounded);
+            var fill = Panel(track.transform, "Fill", Blue, barCorner);
             Stretch(fill);
             // 角の丸みを保つため、塗りの幅（右端の位置）で進み具合を出す
             progressFill = (RectTransform)fill.transform;
@@ -459,7 +720,25 @@ namespace EkiNavi.Route
             var rescan = OutlineButton(bar.transform, () => Show(Screen.Scan));
             Anchor(rescan.gameObject, new Vector2(0.62f, 0.5f), new Vector2(1, 1), new Vector2(10, 4), new Vector2(-44, -24));
             refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
+
+            guideOverlay = BuildGuideOverlay(page.transform);
             return page;
+        }
+
+        // 読み取り直してほしいときの全面表示。後ろのカメラの映像が透けて見える
+        GameObject BuildGuideOverlay(Transform page)
+        {
+            var overlay = Panel(page, "RescanOverlay", new Color(0.2f, 0.22f, 0.28f, 0.85f), null);
+            overlay.GetComponent<Image>().raycastTarget = true;
+            Stretch(overlay);
+            overlayTitle = Label(overlay.transform, "", 56, Color.white, FontStyle.Bold, TextAnchor.LowerCenter);
+            Anchor(overlayTitle.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, 90), new Vector2(-50, 340));
+            overlaySub = Label(overlay.transform, "", 36, new Color(1, 1, 1, 0.9f), FontStyle.Normal, TextAnchor.UpperCenter);
+            Anchor(overlaySub.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, -30), new Vector2(-50, 60));
+            var rescan = PrimaryButton(overlay.transform, () => Show(Screen.Scan));
+            Anchor(rescan.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(110, -270), new Vector2(-110, -100));
+            refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
+            return overlay;
         }
 
         GameObject BuildArrived()
@@ -476,7 +755,8 @@ namespace EkiNavi.Route
             var restart = Button(page.transform, Color.white, rounded, () =>
             {
                 if (arrow != null) arrow.ResetArrival();
-                Show(Screen.Setup);
+                hasGuide = false;
+                Show(Screen.Stations);
             });
             Anchor(restart.gameObject, new Vector2(0, 0), new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
             var restartLabel = Label(restart.transform, "", 44, Success, FontStyle.Bold, TextAnchor.MiddleCenter);
@@ -498,66 +778,6 @@ namespace EkiNavi.Route
             label.rectTransform.sizeDelta = new Vector2(0, 70);
             refreshers.Add(() => label.text = T(key));
             return label.gameObject;
-        }
-
-        /// <summary>駅名を打つ欄。端末のキーボード（日本語の入力も）で打てる。</summary>
-        InputField StationField(Transform parent)
-        {
-            var go = Panel(parent, "StationField", Color.white, rounded);
-            go.GetComponent<Image>().raycastTarget = true;  // たたいてキーボードを出す
-            ((RectTransform)go.transform).sizeDelta = new Vector2(0, 120);
-            var outline = go.AddComponent<Outline>();
-            outline.effectDistance = new Vector2(3, -3);
-            outline.effectColor = Line;
-            var text = Label(go.transform, "", 42, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            text.supportRichText = false;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            Stretch(text.gameObject);
-            text.rectTransform.offsetMin = new Vector2(40, 10);
-            text.rectTransform.offsetMax = new Vector2(-40, -10);
-            var placeholder = Label(go.transform, "", 38, SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
-            Stretch(placeholder.gameObject);
-            placeholder.rectTransform.offsetMin = new Vector2(40, 10);
-            placeholder.rectTransform.offsetMax = new Vector2(-40, -10);
-            var field = go.AddComponent<InputField>();
-            field.textComponent = text;
-            field.placeholder = placeholder;
-            field.lineType = InputField.LineType.SingleLine;
-            field.characterLimit = 20;
-            field.caretColor = Navy;
-            field.caretWidth = 3;
-            field.selectionColor = new Color(0.2f, 0.38f, 0.98f, 0.3f);
-            return field;
-        }
-
-        /// <summary>入力した駅名に合う駅の番号。exactOnly が false なら、打ちかけ（先頭が合う）でもよい。</summary>
-        static int FindStation(string text, bool exactOnly)
-        {
-            for (int i = 0; i < Stations.Length; i++)
-                if (MatchesStation(i, text, exactOnly)) return i;
-            return -1;
-        }
-
-        static bool MatchesStation(int index, string text, bool exactOnly)
-        {
-            string query = NormalizeStation(text);
-            if (query.Length == 0) return false;
-            foreach (var alias in Stations[index].aliases)
-            {
-                string a = NormalizeStation(alias);
-                if (a == query || (!exactOnly && a.StartsWith(query, StringComparison.Ordinal))) return true;
-            }
-            return false;
-        }
-
-        /// <summary>空白と「駅」「station」を除き、英字は小文字にそろえる。</summary>
-        static string NormalizeStation(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return "";
-            string s = text.Trim().ToLowerInvariant().Replace(" ", "").Replace("\u3000", "");
-            if (s.EndsWith("station", StringComparison.Ordinal)) s = s.Substring(0, s.Length - "station".Length);
-            if (s.EndsWith("駅", StringComparison.Ordinal)) s = s.Substring(0, s.Length - 1);
-            return s;
         }
 
         void Refresh()
@@ -788,6 +1008,29 @@ namespace EkiNavi.Route
             texture.Apply();
             return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
                 SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+        }
+
+        /// <summary>歯車の形（設定のボタンに使う）。文字の歯車は端末のフォントにないことがあるので描く。</summary>
+        static Sprite GearSprite()
+        {
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[size * size];
+            float c = size / 2f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x + 0.5f - c, dy = y + 0.5f - c;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float outer = Mathf.Cos(Mathf.Atan2(dy, dx) * 8f) > -0.1f ? 62f : 48f;
+                    float alpha = Mathf.Clamp01(outer - r + 0.5f) * Mathf.Clamp01(r - 22f + 0.5f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
         }
 
         static Color Hex(string hex) => ColorUtility.TryParseHtmlString(hex, out var color) ? color : Color.magenta;
