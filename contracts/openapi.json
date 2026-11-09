@@ -121,15 +121,27 @@
       "post": {
         "summary": "Identify Sign",
         "operationId": "identify_sign_v1_sign_identify_post",
+        "parameters": [
+          {
+            "name": "X-EkiNavi-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Ekinavi-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SignIdentifyRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

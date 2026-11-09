@@ -447,3 +447,24 @@ def test_only_the_leading_arrow_is_compared() -> None:
         "← 9・10 中央本線 中央線 湘南新宿ライン 埼京線",
         "9・10 中央本線 中央線 湘南新宿ライン 埼京線 →",
     )
+
+
+def test_api_requires_the_app_key_when_set(pack_path: Path) -> None:
+    identifier = FakeIdentifier(SignIdentification("", None, (), "", 0.0))
+    client = TestClient(
+        create_app(
+            Settings(pack_path=pack_path, app_key="secret"),
+            sign_identifier=identifier,
+        )
+    )
+
+    for headers in ({}, {"X-EkiNavi-Key": "wrong"}):
+        response = client.post("/v1/sign/identify", json=_body(), headers=headers)
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "unauthorized"
+    assert identifier.seen == ()
+
+    ok = client.post(
+        "/v1/sign/identify", json=_body(), headers={"X-EkiNavi-Key": "secret"}
+    )
+    assert ok.status_code == 200

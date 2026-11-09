@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -223,13 +224,23 @@ def _add_sign_vision_route(
     station: Station,
     identifier: SignIdentifier | None,
     daily: WindowLimiter,
+    app_key: str,
 ) -> None:
-    """カメラの画像から案内板を見分ける API。"""
+    """カメラの画像から案内板を見分ける API。
+
+    app_key があれば、ヘッダー X-EkiNavi-Key が一致する要求だけを受ける。
+    URL を知られても、アプリ以外から Gemini を呼ばれないようにするため。
+    """
 
     @app.post("/v1/sign/identify", response_model=schemas.SignIdentifyResponse)
     def identify_sign(
         body: schemas.SignIdentifyRequest,
+        x_ekinavi_key: str = Header(default="", alias="X-EkiNavi-Key"),
     ) -> schemas.SignIdentifyResponse | JSONResponse:
+        if app_key and not hmac.compare_digest(
+            x_ekinavi_key.encode("utf-8"), app_key.encode("utf-8")
+        ):
+            return _error_response(401, "unauthorized", "アプリの鍵が違います")
         try:
             image = decode_image(body.image_base64, body.mime_type)
         except InvalidImageError as error:
@@ -374,6 +385,7 @@ def create_app(
         station,
         _build_sign_identifier(resolved, sign_identifier),
         WindowLimiter(resolved.gemini_daily_limit, SECONDS_PER_DAY),
+        resolved.app_key,
     )
     _add_page_routes(app, station, resolved)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

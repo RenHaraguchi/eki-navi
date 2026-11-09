@@ -121,6 +121,9 @@ namespace EkiNavi.EditorTools
             so.FindProperty("planeManager").objectReferenceValue = planeManager;
             var serverUrl = System.Environment.GetEnvironmentVariable("EKINAVI_SERVER_URL");
             if (!string.IsNullOrWhiteSpace(serverUrl)) so.FindProperty("serverUrl").stringValue = serverUrl.Trim();
+            // サーバーの合言葉も、環境変数 EKINAVI_APP_KEY があれば入れる（URL と同じく、シーンはコミットしない）
+            var appKey = System.Environment.GetEnvironmentVariable("EKINAVI_APP_KEY");
+            if (!string.IsNullOrWhiteSpace(appKey)) so.FindProperty("appKey").stringValue = appKey.Trim();
             so.ApplyModifiedPropertiesWithoutUndo();
 
             // 歩いている間の位置は、ジャイロと歩数で進める（ARCore が地下で位置を見失いやすいため）

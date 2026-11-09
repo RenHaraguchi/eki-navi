@@ -57,6 +57,7 @@ gcloud run deploy eki-navi --source . --region asia-northeast1 \
 ```
 
 - `--max-instances 3` は費用の上限のために必ず付けます
+- 合言葉を使うときは、`--set-env-vars` に `EKINAVI_APP_KEY=<合言葉>` を足します（例: `openssl rand -hex 16` で作る）。付けると、合言葉を送らない要求は案内板の判定（Gemini）を使えません。合言葉はチームの中だけで共有し、コミットしないでください
 - 回数の上限はインスタンスごとに `GEMINI_RATE_PER_MINUTE`（1 分あたり、既定 60 回）と `GEMINI_DAILY_LIMIT`（1 日あたり、既定 1000 回）で決まります。変えるときは `--set-env-vars` に足します
 - 終わると、`Service URL: https://eki-navi-xxxx.asia-northeast1.run.app` のように URL が出ます。これをアプリに入れます
 
@@ -90,7 +91,7 @@ URL を知っている人は誰でも案内板の判定（Gemini）を呼べる�
 
 ## 6. アプリをサーバーの URL につないでビルドする
 
-環境変数 `EKINAVI_SERVER_URL` にサービスの URL を入れてから、案内板の経路デモのシーンを作ると、「Scan sign」の送り先にその URL が入ります。
+環境変数 `EKINAVI_SERVER_URL` にサービスの URL を、`EKINAVI_APP_KEY` に合言葉（サーバーに入れたときだけ）を入れてから、案内板の経路デモのシーンを作ると、「Scan sign」の送り先にその URL が入ります。
 
 Unity のエディターから作るとき（Mac）は、環境変数を渡すために、ターミナルからエディターを起動します（Unity Hub から開くと環境変数が渡りません）。
 

@@ -37,6 +37,7 @@ class Settings:
     pack_path: Path = DEFAULT_PACK_PATH
     video_url: str = ""
     apk_url: str = ""
+    app_key: str = ""
 
 
 def _safe_link(url: str) -> str:
@@ -78,6 +79,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         pack_path=Path(source.get("PACK_PATH", str(DEFAULT_PACK_PATH))),
         video_url=_safe_link(source.get("DEMO_VIDEO_URL", "")),
         apk_url=_safe_link(source.get("DEMO_APK_URL", "")),
+        app_key=source.get("EKINAVI_APP_KEY", "").strip(),
     )
     if backend == "apikey" and not settings.gemini_api_key:
         raise ConfigError("GEMINI_BACKEND=apikey には GEMINI_API_KEY が必要です")

@@ -38,6 +38,7 @@ Gemini のキーがなくても動きます（`GEMINI_BACKEND=stub`、既定）�
 |---|---|
 | `GEMINI_BACKEND` | `stub`（辞書のみ）、`apikey`（Gemini API のキー）、`vertex`（Cloud Run のサービスアカウント） |
 | `GEMINI_API_KEY` | `apikey` のときのキー。コミットしない |
+| `EKINAVI_APP_KEY` | 設定すると、`POST /v1/sign/identify` はヘッダー `X-EkiNavi-Key` が一致する要求だけを受ける（違えば 401）。アプリは同じ名前の環境変数でビルドする。コミットしない |
 | `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION` | `vertex` のときの接続先 |
 | `GEMINI_MODEL` | 既定は `gemini-3.5-flash-lite` |
 | `GEMINI_VISION_MODEL` | 案内板の画像を見分けるモデル。空なら `GEMINI_MODEL` と同じ |

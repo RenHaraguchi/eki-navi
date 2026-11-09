@@ -30,6 +30,9 @@ namespace EkiNavi.Route
         [Tooltip("サーバーの URL（例: https://xxxx.a.run.app）。末尾の / はなくてよい。"
             + "シーンを作るメニューは、環境変数 EKINAVI_SERVER_URL があればそれを入れる")]
         [SerializeField] string serverUrl = "";
+        [Tooltip("サーバーの合言葉（ヘッダー X-EkiNavi-Key で送る）。サーバーの EKINAVI_APP_KEY と同じにする。"
+            + "シーンを作るメニューは、環境変数 EKINAVI_APP_KEY があればそれを入れる")]
+        [SerializeField] string appKey = "";
         [SerializeField] ARCameraBackground cameraBackground;
         [SerializeField] Camera arCamera;
         [Tooltip("あれば、壁の面で位置と向きを確かめる")]
@@ -182,6 +185,7 @@ namespace EkiNavi.Route
                     request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
                     request.downloadHandler = new DownloadHandlerBuffer();
                     request.SetRequestHeader("Content-Type", "application/json");
+                    if (!string.IsNullOrEmpty(appKey)) request.SetRequestHeader("X-EkiNavi-Key", appKey);
                     request.timeout = Mathf.CeilToInt(timeoutSeconds);
                     yield return request.SendWebRequest();
 
