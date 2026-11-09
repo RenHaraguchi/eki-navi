@@ -146,10 +146,8 @@ def main(argv: list[str] | None = None) -> int:
 
     text = dump_signs(doc)
     # Windows でも LF で書く（リポジトリの signs.json は LF）
-    SERVER_SIGNS.write_text(text, encoding="utf-8", newline="
-")
-    APP_SIGNS.write_text(text, encoding="utf-8", newline="
-")
+    SERVER_SIGNS.write_text(text, encoding="utf-8", newline="\n")
+    APP_SIGNS.write_text(text, encoding="utf-8", newline="\n")
     print(f"書き直しました: {SERVER_SIGNS} と {APP_SIGNS}")
 
     if args.photos_dir:
