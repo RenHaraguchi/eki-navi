@@ -46,6 +46,10 @@ namespace EkiNavi.Route
         float agreement, measuredTurn;
         float lastCameraYaw;
         bool hasCameraYaw;
+        // 横向きで撮って合わせたあと、縦に戻るのを待っている。縦に戻ったら向きを AR のカメラで合わせ直す
+        bool waitingForPortrait;
+        float portraitSince = -1f;
+        const float PortraitHoldSeconds = 0.3f;
         GUIStyle style;
 
         /// <summary>推測航法の位置を使えるか（合わせ済みで、ジャイロがある）。</summary>
@@ -56,6 +60,13 @@ namespace EkiNavi.Route
 
         /// <summary>経路の座標での、スマホの歩く向き（北から時計回りの度）。</summary>
         public float HeadingDeg => heading.HeadingDeg;
+
+        /// <summary>
+        /// 横向きで撮って合わせ、まだ縦に戻していない。この間は矢印を出さない。
+        /// 見上げたまま横から縦に回すと、その回転の一部がジャイロでは重力のまわりの回転に数えられ、
+        /// 歩く向きがずれる（見上げる角度 30 度で 45 度ほど）。縦に戻ってから AR のカメラで向きを合わせ直す。
+        /// </summary>
+        public bool WaitingForPortrait => aligned && waitingForPortrait;
 
         void Awake()
         {
@@ -88,6 +99,25 @@ namespace EkiNavi.Route
             heading.Reset(LocalWalkAzimuth());
             lastSteps = motion != null ? motion.Steps : 0;
             aligned = true;
+            waitingForPortrait = ImageTurns.Choose(cameraTransform.rotation) != ImageTurn.None;
+            portraitSince = -1f;
+        }
+
+        /// <summary>縦に戻ったのを見て、向きを AR のカメラで合わせ直す。</summary>
+        void UpdatePortraitWait(float now, bool tracking)
+        {
+            if (!waitingForPortrait) return;
+            if (ImageTurns.Choose(cameraTransform.rotation) != ImageTurn.None)
+            {
+                portraitSince = -1f;
+                return;
+            }
+            if (portraitSince < 0f) portraitSince = now;
+            // 縦の向きが少し続いてから。AR が位置を見失っている間は合わせ直さない（経路は AR の座標に置いてあるため）
+            if (now - portraitSince < PortraitHoldSeconds || !tracking) return;
+            heading.Reset(LocalWalkAzimuth());
+            waitingForPortrait = false;
+            Debug.Log($"[EkiNavi] 縦に戻ったので、歩く向きを合わせ直しました（{heading.HeadingDeg:0} 度）");
         }
 
         /// <summary>
@@ -144,6 +174,7 @@ namespace EkiNavi.Route
         {
             float cameraYaw = CameraWalkYaw();
             bool tracking = ARSession.state == ARSessionState.SessionTracking;
+            UpdatePortraitWait(Time.time, tracking);
             if (!signDecided && tracking && hasCameraYaw && dt > 0f)
             {
                 float arRate = Mathf.DeltaAngle(lastCameraYaw, cameraYaw) / dt;

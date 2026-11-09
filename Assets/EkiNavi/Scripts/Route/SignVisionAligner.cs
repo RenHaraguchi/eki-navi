@@ -37,7 +37,8 @@ namespace EkiNavi.Route
 
         [Header("画像（数値は仮）")]
         [Tooltip("送る画像の長辺（px）。大きいほど遠くの文字が読めるが、送るのに時間がかかる")]
-        [SerializeField] int maxLongSide = 1280;
+        // 小さい文字を読みやすくするため、画面と同じ解像度で送る（2026-11-09 の試験で 1280 から上げた）
+        [SerializeField] int maxLongSide = 1920;
         [Range(30, 95)]
         [SerializeField] int jpegQuality = 80;
         [Tooltip("ぶれの少ない1枚を選ぶために写すフレーム数")]
@@ -87,6 +88,7 @@ namespace EkiNavi.Route
         SignRouteAligner aligner;
         RouteRenderer route;
         RenderTexture best;
+        Texture2D turned; // 横向きで撮った画像を回して入れる
         Texture2D readback;
         bool busy;
         string status = "";
@@ -118,6 +120,7 @@ namespace EkiNavi.Route
         {
             if (best != null) best.Release();
             if (readback != null) Destroy(readback);
+            if (turned != null) Destroy(turned);
         }
 
         void Update()
@@ -163,7 +166,9 @@ namespace EkiNavi.Route
                 if (selector != null && selector.Selected.Length == 0)
                     Debug.LogWarning("[EkiNavi] カメラの解像度がまだ既定のままです。遠くの文字は読めないかもしれません");
 
-                byte[] jpeg = Encode(best);
+                // 端末を横に倒して撮ったら、文字がまっすぐになるよう画像を回してから送る
+                var turn = ImageTurns.Choose(view.Rotation);
+                byte[] jpeg = Encode(best, turn);
                 status = $"Sending {jpeg.Length / 1024} KB...";
                 var body = JsonUtility.ToJson(new IdentifyRequest
                 {
@@ -188,8 +193,8 @@ namespace EkiNavi.Route
                         yield break;
                     }
                     var response = JsonUtility.FromJson<IdentifyResponse>(request.downloadHandler.text);
-                    Debug.Log($"[EkiNavi] 案内板の判別: {response.status} {response.signId}（重なり {response.matchScore:0.00}、Gemini {response.latencyMs} ms、往復 {roundTrip} ms、{jpeg.Length / 1024} KB）読んだ文字: {response.readText}");
-                    Apply(response, view, roundTrip);
+                    Debug.Log($"[EkiNavi] 案内板の判別: {response.status} {response.signId}（重なり {response.matchScore:0.00}、Gemini {response.latencyMs} ms、往復 {roundTrip} ms、{jpeg.Length / 1024} KB、画像の回転 {turn}）読んだ文字: {response.readText}");
+                    Apply(response, view, turn, roundTrip);
                 }
             }
             finally
@@ -232,13 +237,24 @@ namespace EkiNavi.Route
             readback = new Texture2D(w, h, TextureFormat.RGB24, false);
         }
 
-        byte[] Encode(RenderTexture source)
+        byte[] Encode(RenderTexture source, ImageTurn turn)
         {
             var previous = RenderTexture.active;
             RenderTexture.active = source;
             readback.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0, false);
             RenderTexture.active = previous;
-            return readback.EncodeToJPG(jpegQuality);
+            if (turn == ImageTurn.None) return readback.EncodeToJPG(jpegQuality);
+
+            var pixels = ImageTurns.Rotate(readback.GetPixels32(), readback.width, readback.height, turn,
+                out int width, out int height);
+            if (turned == null || turned.width != width || turned.height != height)
+            {
+                if (turned != null) Destroy(turned);
+                turned = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            }
+            turned.SetPixels32(pixels);
+            turned.Apply(false);
+            return turned.EncodeToJPG(jpegQuality);
         }
 
         string[] CandidateIds()
@@ -253,7 +269,7 @@ namespace EkiNavi.Route
             return ids.ToArray();
         }
 
-        void Apply(IdentifyResponse response, CaptureView view, int roundTrip)
+        void Apply(IdentifyResponse response, CaptureView view, ImageTurn turn, int roundTrip)
         {
             switch (response.status)
             {
@@ -272,20 +288,26 @@ namespace EkiNavi.Route
                 status = $"Unknown sign id: {response.signId}";
                 return;
             }
+            // Gemini の答えは送った（回した）画像の座標なので、撮った画像の座標に戻してから使う
             var box = response.box;
+            Vector2 Back(float x, float y) => ImageTurns.ToOriginal(turn, new Vector2(x, y));
+            float boxCenterX = (box.xMin + box.xMax) * 0.5f;
+            var boxCenter = Back(boxCenterX, (box.yMin + box.yMax) * 0.5f);
             Vector3 position;
             Vector2 normal;
             string source;
             var c = response.corners;
             if (c != null && c.Length == 4 && SignVisionGeometry.TryLocateFromCorners(view,
-                    new Vector2(c[0].x, c[0].y), new Vector2(c[1].x, c[1].y),
-                    new Vector2(c[2].x, c[2].y), new Vector2(c[3].x, c[3].y),
+                    Back(c[0].x, c[0].y), Back(c[1].x, c[1].y),
+                    Back(c[2].x, c[2].y), Back(c[3].x, c[3].y),
                     sign.widthMeters, sign.heightMeters, out position, out normal, out var ratio, out var sideKnown))
             {
                 // 四隅から、斜めから見ても板の向きが分かる。左右が決まらないときは正面とみなした向き
                 source = sideKnown ? $"corners, {Mathf.Acos(Mathf.Clamp01(ratio)) * Mathf.Rad2Deg:0} deg" : "corners, front";
             }
-            else if (SignVisionGeometry.TryLocate(view, box.xMin, box.yMin, box.xMax, box.yMax, sign.heightMeters,
+            else if (box.yMax > box.yMin && box.xMax > box.xMin &&
+                     SignVisionGeometry.TryLocateFromVerticalLine(view,
+                         Back(boxCenterX, box.yMin), Back(boxCenterX, box.yMax), sign.heightMeters,
                          out position, out normal))
             {
                 // 四隅が使えないときは、正面から撮ったとみなす
@@ -297,7 +319,7 @@ namespace EkiNavi.Route
                 return;
             }
 
-            var ray = SignVisionGeometry.RayThrough(view, (box.xMin + box.xMax) * 0.5f, (box.yMin + box.yMax) * 0.5f);
+            var ray = SignVisionGeometry.RayThrough(view, boxCenter.x, boxCenter.y);
             float estimated = Vector3.Distance(view.Position, position);
             if (TryWall(ray, estimated, out var hit, out var wallNormal))
             {
