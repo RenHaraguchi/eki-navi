@@ -69,6 +69,8 @@ namespace EkiNavi.Route
         public float OffRouteMeters { get; private set; }
         /// <summary>画面の下の英語の案内文を出すか（EkiNaviUI があるときは隠す）。</summary>
         public bool ShowText { get => showText; set => showText = value; }
+        /// <summary>横向きで撮って合わせ、縦に戻すのを待っている（矢印は出さない）。</summary>
+        public bool WaitingForPortrait => tracker != null && tracker.WaitingForPortrait;
 
         /// <summary>着いた状態を消す（UI で最初に戻ったとき）。</summary>
         public void ResetArrival() => IsArrived = false;
@@ -105,6 +107,15 @@ namespace EkiNavi.Route
                 hasYaw = false;
                 guidance = "";
                 IsGuiding = false;
+                return;
+            }
+
+            if (WaitingForPortrait)
+            {
+                // 縦に戻すまでは、向きが確かでないので矢印を出さない
+                arrow.SetActive(false);
+                hasYaw = false;
+                guidance = "Hold the phone upright";
                 return;
             }
 

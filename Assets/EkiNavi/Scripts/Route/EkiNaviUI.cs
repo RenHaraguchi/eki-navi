@@ -102,6 +102,8 @@ namespace EkiNavi.Route
             ["straight"] = ("このまま まっすぐ", "Go straight"),
             ["toGoal"] = ("{0}まで あと {1} m", "{1} m to {0}"),
             ["offRoute"] = ("経路から外れています", "You are off the route"),
+            ["upright"] = ("スマホを縦に戻してください", "Hold your phone upright"),
+            ["uprightSub"] = ("縦に戻すと矢印が出ます", "The arrow appears when the phone is upright"),
             ["offRouteSub"] = ("矢印の向きに戻ってください（{0} m）", "Follow the arrow back ({0} m)"),
             ["destinationLabel"] = ("行き先: {0}", "To: {0}"),
             ["rescan"] = ("読み取り直す", "Rescan"),
@@ -186,6 +188,14 @@ namespace EkiNavi.Route
 
             guideDestination.text = string.Format(T("destinationLabel"), Goal);
 
+            if (arrow.WaitingForPortrait)
+            {
+                guideCardImage.color = Navy;
+                guideIcon.text = "↻";
+                guideMain.text = T("upright");
+                guideSub.text = T("uprightSub");
+                return;
+            }
             if (!arrow.IsGuiding)
             {
                 guideCardImage.color = SubInk;
