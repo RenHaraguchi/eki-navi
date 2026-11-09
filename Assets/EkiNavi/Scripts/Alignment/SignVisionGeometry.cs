@@ -266,6 +266,204 @@ namespace EkiNavi.Alignment
         }
 
         /// <summary>画像の点 (0〜1、上が 0) の方向（カメラの local 座標、z が前、奥行き 1）。</summary>
+        /// <summary>
+        /// 四隅の4点すべてが最もよく重なる、板の位置と向きを最小二乗で求める（カメラの位置と向きは ARCore の値で決まっている）。
+        ///
+        /// 未知数は板の中心 (x, y, z) と、水平な法線の向き（板は重力に対して立っているとみなす）の4つ。
+        /// 四隅の8つの座標との差（画像の縦を 1 とした長さ）の二乗和を、ガウス・ニュートン法で小さくする。
+        /// 左右の辺の長さの差だけで向きを決める <see cref="TryLocateFromCorners"/> と違い、上下の辺の傾き（遠近）も使うので、
+        /// 斜めの角度が小さいときでも、どちら側から見ているかを決めやすい。
+        /// 初めの値は TryLocateFromCorners の答えと、それをカメラへの向きで折り返したものの2つから始め、残差の小さいほうを選ぶ。
+        /// </summary>
+        /// <param name="rmsError">四隅の残差の二乗平均の平方根（画像の縦に対する割合）。</param>
+        /// <param name="sideConfidence">もう一方の向きの残差 ÷ 選んだ向きの残差。大きいほど、向きの左右が確か。</param>
+        public static bool TryFitRectangle(
+            CaptureView view,
+            Vector2 topLeft, Vector2 topRight, Vector2 bottomRight, Vector2 bottomLeft,
+            float signWidthMeters, float signHeightMeters,
+            Vector3 initialPosition, Vector2 initialNormal,
+            out Vector3 signPosition, out Vector2 horizontalNormal, out float rmsError, out float sideConfidence)
+        {
+            signPosition = initialPosition;
+            horizontalNormal = initialNormal;
+            rmsError = float.MaxValue;
+            sideConfidence = 1f;
+            if (signWidthMeters <= 0f || signHeightMeters <= 0f || initialNormal.sqrMagnitude < 1e-8f) return false;
+            var observed = new[] { topLeft, topRight, bottomRight, bottomLeft };
+            float aspect = AspectOf(view.Projection);
+
+            // 初めの向き: そのまま と、カメラへの向きで折り返したもの
+            var c = new Vector2(view.Position.x, view.Position.z);
+            var toCamera = (c - new Vector2(initialPosition.x, initialPosition.z)).normalized;
+            var n0 = initialNormal.normalized;
+            var mirrored = (2f * Vector2.Dot(n0, toCamera) * toCamera - n0).normalized;
+
+            bool ok = false;
+            double bestRms = double.MaxValue, otherRms = double.MaxValue;
+            Vector2 otherNormal = Vector2.zero;
+            foreach (var start in new[] { n0, mirrored })
+            {
+                if (!Fit(view, observed, aspect, signWidthMeters, signHeightMeters, initialPosition, start,
+                        out var position, out var normal, out double rms)) continue;
+                if (rms < bestRms)
+                {
+                    otherRms = bestRms;
+                    otherNormal = horizontalNormal;
+                    bestRms = rms;
+                    signPosition = position;
+                    horizontalNormal = normal;
+                    ok = true;
+                }
+                else if (rms < otherRms)
+                {
+                    otherRms = rms;
+                    otherNormal = normal;
+                }
+            }
+            if (!ok) return false;
+            // 板の表がカメラを向いていなければ、おかしな答え
+            var center = new Vector2(signPosition.x, signPosition.z);
+            if (Vector2.Dot(horizontalNormal, c - center) <= 0f) return false;
+            float distance = Vector3.Distance(view.Position, signPosition);
+            if (distance < MinDistance || distance > MaxDistance) return false;
+            rmsError = (float)bestRms;
+            // 2つの初めの値から同じ答えに着いたなら、もう一方の向きの答えはない（左右は確か）
+            bool sameAnswer = otherRms < double.MaxValue && Vector2.Angle(otherNormal, horizontalNormal) < 5f;
+            sideConfidence = otherRms >= double.MaxValue || sameAnswer
+                ? float.MaxValue
+                : (float)(otherRms / System.Math.Max(bestRms, 1e-9));
+            return true;
+        }
+
+        static bool Fit(CaptureView view, Vector2[] observed, float aspect, float width, float height,
+            Vector3 startPosition, Vector2 startNormal, out Vector3 position, out Vector2 normal, out double rms)
+        {
+            // p = (x, y, z, 法線の方位 θ)。法線 = (sin θ, cos θ)
+            var p = new double[] { startPosition.x, startPosition.y, startPosition.z, System.Math.Atan2(startNormal.x, startNormal.y) };
+            double lambda = 1e-3;
+            double cost = Cost(view, observed, aspect, width, height, p, out var r);
+            for (int iteration = 0; iteration < 50 && cost < double.MaxValue; iteration++)
+            {
+                // 数値微分のヤコビ行列（8×4）
+                var J = new double[8, 4];
+                for (int k = 0; k < 4; k++)
+                {
+                    var q = (double[])p.Clone();
+                    double h = k < 3 ? 1e-4 : 1e-5;
+                    q[k] += h;
+                    Cost(view, observed, aspect, width, height, q, out var rq);
+                    if (rq == null) return Fail(out position, out normal, out rms);
+                    for (int i = 0; i < 8; i++) J[i, k] = (rq[i] - r[i]) / h;
+                }
+                // (JᵀJ + λ diag) δ = −Jᵀ r（レーベンバーグ・マーカート）
+                var A = new double[4, 4];
+                var g = new double[4];
+                for (int a = 0; a < 4; a++)
+                {
+                    for (int b = 0; b < 4; b++)
+                        for (int i = 0; i < 8; i++) A[a, b] += J[i, a] * J[i, b];
+                    for (int i = 0; i < 8; i++) g[a] -= J[i, a] * r[i];
+                }
+                bool improved = false;
+                for (int attempt = 0; attempt < 10; attempt++)
+                {
+                    var M = (double[,])A.Clone();
+                    for (int a = 0; a < 4; a++) M[a, a] += lambda * (A[a, a] + 1e-9);
+                    if (!Solve4(M, g, out var delta)) break;
+                    var q = new double[4];
+                    for (int a = 0; a < 4; a++) q[a] = p[a] + delta[a];
+                    double c2 = Cost(view, observed, aspect, width, height, q, out var r2);
+                    if (c2 < cost)
+                    {
+                        double gain = cost - c2;
+                        p = q; cost = c2; r = r2;
+                        lambda = System.Math.Max(lambda * 0.3, 1e-9);
+                        improved = true;
+                        if (gain < 1e-14) iteration = 50;
+                        break;
+                    }
+                    lambda *= 10;
+                }
+                if (!improved) break;
+            }
+            if (cost >= double.MaxValue) return Fail(out position, out normal, out rms);
+            position = new Vector3((float)p[0], (float)p[1], (float)p[2]);
+            normal = new Vector2((float)System.Math.Sin(p[3]), (float)System.Math.Cos(p[3]));
+            rms = System.Math.Sqrt(cost / 8.0);
+            return true;
+        }
+
+        static bool Fail(out Vector3 position, out Vector2 normal, out double rms)
+        {
+            position = Vector3.zero;
+            normal = Vector2.zero;
+            rms = double.MaxValue;
+            return false;
+        }
+
+        /// <summary>板の四隅を画像に写したときの、観測との差（8つ）と、その二乗和。カメラの後ろに回ったら double.MaxValue。</summary>
+        static double Cost(CaptureView view, Vector2[] observed, float aspect, float width, float height, double[] p,
+            out double[] residual)
+        {
+            residual = null;
+            var center = new Vector3((float)p[0], (float)p[1], (float)p[2]);
+            var n = new Vector3((float)System.Math.Sin(p[3]), 0f, (float)System.Math.Cos(p[3]));
+            // 表から見て右（テストの CornersOf と同じ向き）
+            var right = Vector3.Cross(n, Vector3.up).normalized * (width * 0.5f);
+            var up = Vector3.up * (height * 0.5f);
+            var corners = new[] { center - right + up, center + right + up, center + right - up, center - right - up };
+            var r = new double[8];
+            double sum = 0;
+            var inverse = Quaternion.Inverse(view.Rotation);
+            for (int i = 0; i < 4; i++)
+            {
+                var local = inverse * (corners[i] - view.Position);
+                var clip = view.Projection * new Vector4(local.x, local.y, -local.z, 1f);
+                if (clip.w <= 1e-4f) return double.MaxValue;
+                double x = (clip.x / clip.w + 1.0) * 0.5;
+                double y = (1.0 - clip.y / clip.w) * 0.5;
+                // 画像の縦を 1 とした長さにそろえる（横は縦横比を掛ける）
+                r[2 * i] = (x - observed[i].x) * aspect;
+                r[2 * i + 1] = y - observed[i].y;
+                sum += r[2 * i] * r[2 * i] + r[2 * i + 1] * r[2 * i + 1];
+            }
+            residual = r;
+            return sum;
+        }
+
+        /// <summary>4×4 の連立一次方程式を、部分ピボットのガウスの消去法で解く。</summary>
+        static bool Solve4(double[,] a, double[] b, out double[] x)
+        {
+            const int n = 4;
+            var m = (double[,])a.Clone();
+            x = (double[])b.Clone();
+            for (int col = 0; col < n; col++)
+            {
+                int pivot = col;
+                for (int row = col + 1; row < n; row++)
+                    if (System.Math.Abs(m[row, col]) > System.Math.Abs(m[pivot, col])) pivot = row;
+                if (System.Math.Abs(m[pivot, col]) < 1e-15) return false;
+                if (pivot != col)
+                {
+                    for (int k = 0; k < n; k++) (m[col, k], m[pivot, k]) = (m[pivot, k], m[col, k]);
+                    (x[col], x[pivot]) = (x[pivot], x[col]);
+                }
+                for (int row = col + 1; row < n; row++)
+                {
+                    double f = m[row, col] / m[col, col];
+                    for (int k = col; k < n; k++) m[row, k] -= f * m[col, k];
+                    x[row] -= f * x[col];
+                }
+            }
+            for (int row = n - 1; row >= 0; row--)
+            {
+                double s2 = x[row];
+                for (int k = row + 1; k < n; k++) s2 -= m[row, k] * x[k];
+                x[row] = s2 / m[row, row];
+            }
+            return true;
+        }
+
         static Vector3 LocalDirection(Matrix4x4 p, float x, float y)
         {
             float ndcX = 2f * x - 1f;

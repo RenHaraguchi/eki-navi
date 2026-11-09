@@ -39,6 +39,10 @@ namespace EkiNavi.Route
         [Tooltip("送る画像の長辺（px）。大きいほど遠くの文字が読めるが、送るのに時間がかかる")]
         // 小さい文字を読みやすくするため、画面と同じ解像度で送る（2026-11-09 の試験で 1280 から上げた）
         [SerializeField] int maxLongSide = 1920;
+        [Tooltip("四隅の当てはめを使う、残差の上限（画像の縦に対する割合。0.012 は縦 1920px で約 23px）")]
+        [SerializeField] float maxFitRms = 0.012f;
+        [Tooltip("四隅の当てはめで、逆の向きの残差が選んだ向きの何倍以上なら左右を信じるか")]
+        [SerializeField] float minSideConfidence = 1.5f;
         [Range(30, 95)]
         [SerializeField] int jpegQuality = 80;
         [Tooltip("ぶれの少ない1枚を選ぶために写すフレーム数")]
@@ -306,6 +310,18 @@ namespace EkiNavi.Route
             {
                 // 四隅から、斜めから見ても板の向きが分かる。左右が決まらないときは正面とみなした向き
                 source = sideKnown ? $"corners, {Mathf.Acos(Mathf.Clamp01(ratio)) * Mathf.Rad2Deg:0} deg" : "corners, front";
+                // 四隅の4点すべてに当てはめ直す。上下の辺の遠近も使うので、斜めの角度が小さくても左右を決めやすい
+                if (SignVisionGeometry.TryFitRectangle(view,
+                        Back(c[0].x, c[0].y), Back(c[1].x, c[1].y), Back(c[2].x, c[2].y), Back(c[3].x, c[3].y),
+                        sign.widthMeters, sign.heightMeters, position, normal,
+                        out var fitPosition, out var fitNormal, out var fitRms, out var sideConfidence)
+                    && fitRms <= maxFitRms && sideConfidence >= minSideConfidence)
+                {
+                    position = fitPosition;
+                    normal = fitNormal;
+                    var toCamera = new Vector2(view.Position.x - position.x, view.Position.z - position.z);
+                    source = $"fit, {Vector2.Angle(normal, toCamera):0} deg";
+                }
             }
             else if (box.yMax > box.yMin && box.xMax > box.xMin &&
                      SignVisionGeometry.TryLocateFromVerticalLine(view,
