@@ -17,19 +17,38 @@ namespace EkiNavi.EditorTools
     /// 参照画像ライブラリ（Assets/EkiNavi/ImageTracking/SignLibrary.asset）がなければ空のものを作る。
     /// 画像は手で足す: 名前を signs.json の imageName（例: sign_2f_south）にし、Specify Size をオンにして
     /// 実寸の幅（メートル）を入れる。
+    ///
+    /// 経路は1本だけ持つ。どの案内板を読み取っても、その板の位置と向きから経路を置くので、
+    /// 経路と同じ階の板を読み取れば、経路は正しい場所に出る。
+    /// 経路は環境変数 EKINAVI_ROUTE（Assets/EkiNavi/Routes/ の中のファイル名。拡張子なし）で選べる。
+    /// なければ2階の南改札 → 新南口改札（jr_south_to_new_south）
     /// </summary>
     public static class SignRouteDemoSceneBuilder
     {
         const string ScenePath = "Assets/EkiNavi/Scenes/SignRouteDemo.unity";
-        const string RoutePath = "Assets/EkiNavi/Routes/jr_south_to_new_south.json";
+        const string RoutesDir = "Assets/EkiNavi/Routes";
+        const string DefaultRoute = "jr_south_to_new_south";
+        // 地下1階の 9・10番線のエスカレーター（西）→ 小田急線のりば。改札の中の道筋を手でなぞった線
+        const string B1OdakyuRoute = "b1_9_10_to_odakyu";
         const string SignsPath = "Assets/EkiNavi/Data/signs.json";
         const string LibraryPath = "Assets/EkiNavi/ImageTracking/SignLibrary.asset";
         const string LineMaterialPath = "Assets/EkiNavi/Materials/RouteLine.mat";
         const string ArrowMaterialPath = "Assets/EkiNavi/Materials/RouteArrow.mat";
 
         [MenuItem("EkiNavi/案内板の経路デモのシーンを作る")]
-        public static void Build()
+        public static void BuildMenu() => Build();
+
+        [MenuItem("EkiNavi/案内板の経路デモのシーンを作る（地下1階 9・10番線 → 小田急線）")]
+        public static void BuildB1OdakyuMenu() => Build(B1OdakyuRoute);
+
+        /// <summary>経路のファイル名（拡張子なし）。省略したら環境変数 EKINAVI_ROUTE、それもなければ2階のデモ</summary>
+        public static void Build(string routeName = null)
         {
+            routeName ??= System.Environment.GetEnvironmentVariable("EKINAVI_ROUTE");
+            if (string.IsNullOrWhiteSpace(routeName)) routeName = DefaultRoute;
+            var routePath = $"{RoutesDir}/{routeName.Trim()}.json";
+            if (!File.Exists(routePath)) throw new FileNotFoundException($"経路のファイルがありません: {routePath}");
+
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
             // NewScene は使われていないアセットを解放するので、ライブラリはシーンを作ってから読む
@@ -66,7 +85,8 @@ namespace EkiNavi.EditorTools
             var aligner = routeGo.AddComponent<SignRouteAligner>();
 
             so = new SerializedObject(renderer);
-            so.FindProperty("routeJson").objectReferenceValue = AssetDatabase.LoadAssetAtPath<TextAsset>(RoutePath);
+            // NewScene のあとに読む（NewScene が使われていないアセットを解放するため）
+            so.FindProperty("routeJson").objectReferenceValue = AssetDatabase.LoadAssetAtPath<TextAsset>(routePath);
             so.FindProperty("lineMaterial").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(LineMaterialPath);
             so.FindProperty("arrowMaterial").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(ArrowMaterialPath);
             so.ApplyModifiedPropertiesWithoutUndo();
@@ -136,7 +156,7 @@ namespace EkiNavi.EditorTools
             scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
 
-            Debug.Log($"[EkiNavi] {ScenePath} を作りました。参照画像は {LibraryPath} に足してください（{library.count} 枚登録済み）");
+            Debug.Log($"[EkiNavi] {ScenePath} を経路 {routeName} で作りました。参照画像は {LibraryPath} に足してください（{library.count} 枚登録済み）");
             Selection.activeObject = library;
         }
 
