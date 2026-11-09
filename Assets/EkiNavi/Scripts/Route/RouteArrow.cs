@@ -36,7 +36,8 @@ namespace EkiNavi.Route
 
         [Header("案内（単位はメートル、数値は仮）")]
         [SerializeField] float lookahead = 4f;
-        [SerializeField] float offRouteDistance = 3f;
+        // 3m だと、看板の位置や経路の線の数 m のずれだけで「外れた」と出たので 6m にした（2026-11-09 の現地の試験）
+        [SerializeField] float offRouteDistance = 6f;
         [SerializeField] float arrivalRadius = 5f;
         [SerializeField] float turnAngleThreshold = 30f;
 
