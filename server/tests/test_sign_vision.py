@@ -24,7 +24,10 @@ from app.sign_vision import (
     candidates_of,
     first_arrow,
     is_match,
+    leading_arrow,
+    order_similarity,
     parse_response,
+    readings_of,
     text_match_score,
     text_overlap,
 )
@@ -390,3 +393,57 @@ def test_gemini_identifier_uses_the_vision_model(
 
     assert found.sign_id == ""
     assert "/models/vision-model:" in seen["url"]
+
+
+# 同じ梁の表と裏。同じ文字を逆の順で持つ
+# （2026-11-09 の地下1階 UHV と DBZ を短くしたもの）
+SIGN_FRONT = SignCandidate(
+    "S-FRONT",
+    "表",
+    "← 中央東改札 中央西改札 小田急線 ｜ 東改札 西改札 西武新宿線 →",
+)
+SIGN_BACK = SignCandidate(
+    "S-BACK",
+    "裏",
+    "← 東改札 西改札 西武新宿線 ｜ 中央東改札 中央西改札 小田急線 →",
+)
+
+
+@pytest.mark.parametrize(
+    ("read_text", "expected"),
+    [
+        (
+            "← 中央東改札 中央西改札 小田急線 東改札 西改札 西武新宿線 →",
+            "S-FRONT",
+        ),
+        (
+            "← 東改札 西改札 西武新宿線 中央東改札 中央西改札 小田急線 →",
+            "S-BACK",
+        ),
+    ],
+)
+def test_front_and_back_with_the_same_words_are_told_apart_by_order(
+    read_text: str, expected: str
+) -> None:
+    assert best_match(read_text, (SIGN_FRONT, SIGN_BACK))[0] == expected
+
+
+def test_order_similarity_uses_the_closest_reading() -> None:
+    joined = "↑ 中央東改札 ｜ ↑ 中央東改札 埼京線 湘南新宿ライン"
+    assert order_similarity("↑ 中央東改札 埼京線 湘南新宿ライン", joined) == 1.0
+    assert order_similarity("", joined) == 0.0
+
+
+def test_readings_include_the_whole_text_and_each_read() -> None:
+    assert readings_of("A ｜ B") == ["A ｜ B", "A", "B"]
+    assert readings_of("A") == ["A"]
+
+
+def test_only_the_leading_arrow_is_compared() -> None:
+    # U ターンの矢印など、先頭の矢印を登録していない板は、後ろの矢印で弾かない
+    assert leading_arrow("9・10 中央本線 →") == ""
+    assert leading_arrow("← 9・10 中央本線") == "←"
+    assert is_match(
+        "← 9・10 中央本線 中央線 湘南新宿ライン 埼京線",
+        "9・10 中央本線 中央線 湘南新宿ライン 埼京線 →",
+    )
