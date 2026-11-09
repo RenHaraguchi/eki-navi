@@ -447,3 +447,17 @@ def test_only_the_leading_arrow_is_compared() -> None:
         "← 9・10 中央本線 中央線 湘南新宿ライン 埼京線",
         "9・10 中央本線 中央線 湘南新宿ライン 埼京線 →",
     )
+
+
+def test_front_and_back_without_arrows_are_told_apart_by_order() -> None:
+    # 矢印がなく、文字の重なりがほぼ同じでも、並び順で見分ける
+    front = SignCandidate(
+        "S-F", "表", "中央東改札 中央西改札 小田急線 ｜ 東改札 西改札 西武新宿線"
+    )
+    back = SignCandidate(
+        "S-B", "裏", "東改札 西改札 西武新宿線 ｜ 中央東改札 中央西改札 小田急線"
+    )
+    read_front = "中央東改札 中央西改札 小田急線 東改札 西改札 西武新宿線"
+    read_back = "東改札 西改札 西武新宿線 中央東改札 中央西改札 小田急線"
+    assert best_match(read_front, (front, back))[0] == "S-F"
+    assert best_match(read_back, (front, back))[0] == "S-B"
