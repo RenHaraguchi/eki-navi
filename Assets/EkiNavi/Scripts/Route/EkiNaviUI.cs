@@ -25,13 +25,14 @@ namespace EkiNavi.Route
     {
         enum Screen { Stations, Line, Account, Scan, Guide, Arrived }
 
-        // アイコン（#15）に合わせた色
-        static readonly Color Navy = Hex("#0017C1");
-        static readonly Color Blue = Hex("#3460FB");
-        static readonly Color Ink = Hex("#1A1F36");
-        static readonly Color SubInk = Hex("#5B6178");
-        static readonly Color Line = Hex("#D9DEEA");
-        static readonly Color Paper = Hex("#F4F6FB");
+        // こたろうさんのカラーパレット（白、ライトグレー、グレー、チャコール、濃い青、青）
+        // Success と Warning はパレットにない、到着と経路外れの専用の色
+        static readonly Color Navy = Hex("#15305A");
+        static readonly Color Blue = Hex("#2F80ED");
+        static readonly Color Ink = Hex("#1E1E1E");
+        static readonly Color SubInk = Hex("#8C8C8C");
+        static readonly Color Line = Hex("#8C8C8C");
+        static readonly Color Paper = Hex("#F2F2F2");
         static readonly Color Success = Hex("#1F9D55");
         static readonly Color Warning = Hex("#E8590C");
 
@@ -471,7 +472,7 @@ namespace EkiNavi.Route
                 Show(Screen.Line);
             });
 
-            var photo = Panel(go.transform, "Photo", station.ready ? Blue : Hex("#C9CEDA"), rounded);
+            var photo = Panel(go.transform, "Photo", station.ready ? Blue : Paper, rounded);
             Anchor(photo, Vector2.zero, Vector2.one, new Vector2(0, StationLabelHeight), Vector2.zero);
             if (station.ready)
             {
@@ -507,7 +508,7 @@ namespace EkiNavi.Route
 
         GameObject BuildLine()
         {
-            var page = Panel(root, "Line", Paper, null);
+            var page = Panel(root, "Line", Color.white, null);
             Stretch(page);
             PageHeader(page.transform, () => stationIndex >= 0
                 ? string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en)
@@ -540,7 +541,7 @@ namespace EkiNavi.Route
 
         GameObject BuildAccount()
         {
-            var page = Panel(root, "Account", Paper, null);
+            var page = Panel(root, "Account", Color.white, null);
             Stretch(page);
             PageHeader(page.transform, () => T("account"), () => Show(Screen.Stations));
 
@@ -580,7 +581,7 @@ namespace EkiNavi.Route
 
         void InfoRow(Transform parent, string key, Func<string> value)
         {
-            var row = Panel(parent, "Row", Color.white, rounded);
+            var row = Panel(parent, "Row", Paper, rounded);
             ((RectTransform)row.transform).sizeDelta = new Vector2(0, 108);
             var left = Label(row.transform, "", 38, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Anchor(left.gameObject, Vector2.zero, Vector2.one, new Vector2(40, 0), new Vector2(-220, 0));
@@ -658,14 +659,8 @@ namespace EkiNavi.Route
                 backToGuide.GetComponentInChildren<Text>().text = T("backToGuide");
             });
 
-            // 案内板を入れる枠（四隅のかぎ）
-            var frame = new GameObject("Frame", typeof(RectTransform));
-            frame.transform.SetParent(page.transform, false);
-            Anchor(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-440, -170), new Vector2(440, 330));
-            foreach (var (ax, ay) in new[] { (0f, 0f), (1f, 0f), (0f, 1f), (1f, 1f) }) Corner(frame.transform, ax, ay);
-
             // 結果の知らせ
-            scanStatusPill = Panel(page.transform, "Status", new Color(0.1f, 0.12f, 0.2f, 0.82f), rounded);
+            scanStatusPill = Panel(page.transform, "Status", new Color(0.118f, 0.118f, 0.118f, 0.82f), rounded);
             Anchor(scanStatusPill, new Vector2(0, 0), new Vector2(1, 0), new Vector2(60, 400), new Vector2(-60, 520));
             scanStatus = Label(scanStatusPill.transform, "", 32, Color.white, FontStyle.Normal, TextAnchor.MiddleCenter);
             Stretch(scanStatus.gameObject, 24);
@@ -673,7 +668,7 @@ namespace EkiNavi.Route
             // 読み取るボタン（丸）
             var ring = Panel(page.transform, "Ring", Color.white, circle);
             Anchor(ring, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-130, 110), new Vector2(130, 370));
-            scanButton = Button(ring.transform, Navy, circle, () => { if (vision != null) vision.Scan(); else PreviewScan(); });
+            scanButton = Button(ring.transform, Blue, circle, () => { if (vision != null) vision.Scan(); else PreviewScan(); });
             Stretch(scanButton.gameObject, 14);
             var scanLabel = Label(scanButton.transform, "", 40, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(scanLabel.gameObject);
@@ -710,7 +705,7 @@ namespace EkiNavi.Route
             var destination = LineBadge(bar.transform, 0, 30, 58);
             Anchor(destination, new Vector2(0, 0.5f), new Vector2(0.62f, 1), new Vector2(44, 0), new Vector2(0, -20));
             guideDestination = Label(destination.transform, "", 34, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            var track = Panel(bar.transform, "Track", Line, barCorner);
+            var track = Panel(bar.transform, "Track", Paper, barCorner);
             Anchor(track, new Vector2(0, 0), new Vector2(1, 0), new Vector2(44, 50), new Vector2(-44, 74));
             var fill = Panel(track.transform, "Fill", Blue, barCorner);
             Stretch(fill);
@@ -813,7 +808,7 @@ namespace EkiNavi.Route
 
         static void Highlight(Button button, bool on)
         {
-            button.GetComponent<Image>().color = on ? Hex("#E8EDFF") : Color.white;
+            button.GetComponent<Image>().color = on ? Paper : Color.white;
             var outline = button.GetComponent<Outline>();
             if (outline != null) outline.effectColor = on ? Blue : Line;
             var label = button.GetComponentInChildren<Text>();
@@ -822,7 +817,7 @@ namespace EkiNavi.Route
 
         Button PrimaryButton(Transform parent, Action onClick)
         {
-            var button = Button(parent, Navy, rounded, onClick);
+            var button = Button(parent, Blue, rounded, onClick);
             var label = Label(button.transform, "", 46, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(label.gameObject);
             return button;
@@ -865,24 +860,6 @@ namespace EkiNavi.Route
             button.colors = colors;
             button.onClick.AddListener(() => onClick());
             return button;
-        }
-
-        void Corner(Transform frame, float ax, float ay)
-        {
-            const float length = 90f, thickness = 12f;
-            var a = new Vector2(ax, ay);
-            var h = Panel(frame, "CornerH", Color.white, null);
-            var v = Panel(frame, "CornerV", Color.white, null);
-            float sx = ax == 0f ? 1f : -1f, sy = ay == 0f ? 1f : -1f;
-            Anchor(h, a, a, new Vector2(Mathf.Min(0, sx * length), Mathf.Min(0, sy * thickness)), new Vector2(Mathf.Max(0, sx * length), Mathf.Max(0, sy * thickness)));
-            Anchor(v, a, a, new Vector2(Mathf.Min(0, sx * thickness), Mathf.Min(0, sy * length)), new Vector2(Mathf.Max(0, sx * thickness), Mathf.Max(0, sy * length)));
-            // 白い物に重なっても見えるよう、影を付ける
-            foreach (var bar in new[] { h, v })
-            {
-                var shadow = bar.AddComponent<Shadow>();
-                shadow.effectColor = new Color(0, 0, 0, 0.55f);
-                shadow.effectDistance = new Vector2(3, -3);
-            }
         }
 
         void Check(Transform badge)
