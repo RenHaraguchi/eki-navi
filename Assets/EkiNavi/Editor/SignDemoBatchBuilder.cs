@@ -17,6 +17,8 @@ namespace EkiNavi.EditorTools
     /// 実行例:
     ///   Unity -batchmode -quit -buildTarget Android -projectPath . \
     ///     -executeMethod EkiNavi.EditorTools.SignDemoBatchBuilder.BuildApk -logFile -
+    ///
+    /// 経路は環境変数 EKINAVI_ROUTE で選べる（例: EKINAVI_ROUTE=b1_9_10_to_odakyu で地下1階の 9・10番線 → 小田急線）
     /// </summary>
     public static class SignDemoBatchBuilder
     {
