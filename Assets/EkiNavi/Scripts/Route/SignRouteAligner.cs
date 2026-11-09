@@ -72,6 +72,9 @@ namespace EkiNavi.Route
 
         public bool Arrived { get; private set; }
 
+        /// <summary>画面の上の英語の状態の文を出すか（EkiNaviUI があるときは隠す）。</summary>
+        public bool ShowStatus { get => showStatus; set => showStatus = value; }
+
         /// <summary>案内板の一覧。SignVisionAligner が候補を選ぶのに使う。</summary>
         public SignCatalog Catalog => catalog;
 

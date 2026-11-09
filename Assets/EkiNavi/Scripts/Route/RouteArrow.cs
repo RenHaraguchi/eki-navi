@@ -51,6 +51,27 @@ namespace EkiNavi.Route
         float currentYaw;
         bool hasYaw;
         string guidance = "";
+
+        /// <summary>矢印で案内している最中か（合わせ済みで、まだ着いていない）。EkiNaviUI が読む。</summary>
+        public bool IsGuiding { get; private set; }
+        /// <summary>ゴールに着いたか。</summary>
+        public bool IsArrived { get; private set; }
+        /// <summary>ゴールまでの残りの距離（m）。</summary>
+        public float RemainingMeters { get; private set; }
+        /// <summary>経路の長さ（m）。</summary>
+        public float TotalMeters => path != null ? path.Length : 0f;
+        /// <summary>次の曲がり角があるか、そこまでの距離（m）と向き。</summary>
+        public bool HasNextTurn { get; private set; }
+        public float NextTurnMeters { get; private set; }
+        public bool NextTurnIsRight { get; private set; }
+        /// <summary>経路から外れているか、経路までの距離（m）。</summary>
+        public bool IsOffRoute { get; private set; }
+        public float OffRouteMeters { get; private set; }
+        /// <summary>画面の下の英語の案内文を出すか（EkiNaviUI があるときは隠す）。</summary>
+        public bool ShowText { get => showText; set => showText = value; }
+
+        /// <summary>着いた状態を消す（UI で最初に戻ったとき）。</summary>
+        public void ResetArrival() => IsArrived = false;
         GUIStyle style;
 
         void Awake()
@@ -83,6 +104,7 @@ namespace EkiNavi.Route
                 arrow.SetActive(false);
                 hasYaw = false;
                 guidance = "";
+                IsGuiding = false;
                 return;
             }
 
@@ -106,6 +128,9 @@ namespace EkiNavi.Route
             {
                 arrow.SetActive(false);
                 guidance = "Arrived";
+                IsGuiding = false;
+                IsArrived = true;
+                RemainingMeters = 0f;
                 return;
             }
 
@@ -144,6 +169,13 @@ namespace EkiNavi.Route
 
         string Describe(RouteProjection projection, float remaining)
         {
+            IsGuiding = true;
+            RemainingMeters = remaining;
+            IsOffRoute = projection.DistanceFromRoute > offRouteDistance;
+            OffRouteMeters = projection.DistanceFromRoute;
+            HasNextTurn = path.TryNextTurn(projection.Along, out var nextTurn) && nextTurn.Distance < remaining;
+            NextTurnMeters = HasNextTurn ? nextTurn.Distance : 0f;
+            NextTurnIsRight = HasNextTurn && nextTurn.IsRight;
             if (projection.DistanceFromRoute > offRouteDistance)
                 return $"Off route ({projection.DistanceFromRoute:0} m). Follow the arrow back";
             string next = path.TryNextTurn(projection.Along, out var turn) && turn.Distance < remaining

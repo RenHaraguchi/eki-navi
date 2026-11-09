@@ -93,6 +93,14 @@ namespace EkiNavi.Route
         GUIStyle buttonStyle, labelStyle;
 
         public bool Busy => busy;
+        /// <summary>直近の Scan sign の結果（開発用の詳しい文）。</summary>
+        public string Status => status;
+        /// <summary>直近の Scan sign の結果（利用者向けの短い文）。</summary>
+        public string StatusForUser => ForUser(status);
+        /// <summary>画面の右下の Scan sign のボタンを出すか（EkiNaviUI があるときは隠す）。</summary>
+        public bool ShowButton { get => showButton; set => showButton = value; }
+        /// <summary>看板で経路を合わせたときに呼ばれる。</summary>
+        public event Action<SignEntry> Aligned;
 
         void Awake()
         {
@@ -299,6 +307,7 @@ namespace EkiNavi.Route
             }
 
             aligner.AlignFromVision(sign, position, normal);
+            Aligned?.Invoke(sign);
             float distance = Vector3.Distance(view.Position, position);
             status = $"Aligned at {sign.id} ({source}, {distance:0.0} m, {roundTrip} ms)";
             // 向きが確かなのは、四隅か壁の面を使えたときだけ。3m より遠いと四隅のずれに負けやすい（試算）

@@ -121,6 +121,9 @@ namespace EkiNavi.EditorTools
             // 開発用の表示は、画面の左上を素早く 3 回たたくと出る（デモでは隠しておく）
             routeGo.AddComponent<DevOverlayToggle>();
 
+            // 利用者向けの画面（設定 → 読み取り → 案内 → 到着）
+            routeGo.AddComponent<EkiNaviUI>();
+
             // ARCore は既定で 640×480 を選ぶことがあるので、起動したら大きい解像度に切り替える
             if (!origin.Camera.TryGetComponent<CameraResolutionSelector>(out _))
                 origin.Camera.gameObject.AddComponent<CameraResolutionSelector>();
