@@ -40,7 +40,7 @@ namespace EkiNavi.Route
         [SerializeField] float offRouteDistance = 6f;
         [SerializeField] float arrivalRadius = 5f;
         [Tooltip("着いたとみなす、経路からの横の距離の上限（m）。外れの判定とは別に、狭くしておく")]
-        [SerializeField] float arrivalLateral = 3f;
+        [SerializeField] float arrivalLateral = 4.5f;
         [SerializeField] float turnAngleThreshold = 30f;
 
         [Header("開発用")]

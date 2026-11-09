@@ -54,6 +54,8 @@ namespace EkiNavi.Route
         float portraitSince = -1f;
         const float PortraitHoldSeconds = 0.3f;
         const float PortraitGiveUpSeconds = 3f;
+        // 縦に戻す待ちを AR が見失ったままあきらめたとき、AR が戻ったら一度だけ向きを合わせ直す
+        bool reanchorWhenTracking;
         GUIStyle style;
 
         /// <summary>推測航法の位置を使えるか（合わせ済みで、ジャイロがある）。</summary>
@@ -105,6 +107,7 @@ namespace EkiNavi.Route
             lastSteps = motion != null ? motion.Steps : 0;
             aligned = true;
             waitingForPortrait = ImageTurns.Choose(cameraTransform.rotation) != ImageTurn.None;
+            reanchorWhenTracking = false;
             portraitSince = -1f;
         }
 
@@ -131,7 +134,16 @@ namespace EkiNavi.Route
         /// <summary>縦に戻ったのを見て、向きを AR のカメラで合わせ直す。</summary>
         void UpdatePortraitWait(float now, bool tracking)
         {
-            if (!waitingForPortrait) return;
+            if (!waitingForPortrait)
+            {
+                if (reanchorWhenTracking && tracking && ImageTurns.Choose(cameraTransform.rotation) == ImageTurn.None)
+                {
+                    heading.Reset(LocalWalkAzimuth());
+                    reanchorWhenTracking = false;
+                    Debug.Log($"[EkiNavi] AR が戻ったので、歩く向きを合わせ直しました（{heading.HeadingDeg:0} 度）");
+                }
+                return;
+            }
             if (ImageTurns.Choose(cameraTransform.rotation) != ImageTurn.None)
             {
                 portraitSince = -1f;
@@ -153,6 +165,7 @@ namespace EkiNavi.Route
             {
                 // AR が戻らないまま待ち続けると矢印が出ないので、ジャイロの向きのまま案内に戻る
                 Debug.Log("[EkiNavi] 縦に戻ったが AR が位置を見失っているので、ジャイロの向きのまま案内します");
+                reanchorWhenTracking = true;
             }
             waitingForPortrait = false;
         }
