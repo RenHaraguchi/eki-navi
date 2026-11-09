@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import difflib
 import json
 import logging
 import re
@@ -39,6 +40,19 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # 同じ板は適合率 0.93 以上・再現率 0.78 以上、別の板は適合率 0.50 以下だった
 MIN_PRECISION = 0.75
 MIN_RECALL = 0.5
+# 厳しい下限に届かなくても、文字の並び順まで近い板は候補にする。
+# 2026-11-09 の地下1階の看板 22 枚では、同じ梁の表と裏（UHV と DBZ、CCH-A と CCH-B）が
+# 同じ文字を逆の順で持っていて、重なりだけでは区別できなかった。
+# 画面越しに撮った 35 回の読み取りで、表と裏の取り違えが 3 回 → 0 回、
+# 見分けられた回数が 18 → 21 回になった
+RELAXED_PRECISION = 0.6
+RELAXED_RECALL = 0.4
+# 候補を選ぶ点数は、重なりの F 値と並び順の近さの平均。合格点と、2番目との差の下限
+ORDER_WEIGHT = 0.5
+MIN_COMBINED = 0.65
+MIN_LEAD = 0.03
+# signs.json の text で、Gemini に何回か読ませた結果をつなぐ区切り
+READ_SEPARATOR = " ｜ "
 ARROWS = "←↑→↓↗↖↘↙"
 # 2026-11-08 の試験では、初期設定の 11〜19 秒に対して 6.5〜10.6 秒だった。
 # 完全に切る設定（thinkingBudget 0）は gemini-3.5-flash-lite では受け付けられなかった
@@ -276,6 +290,49 @@ def first_arrow(text: str) -> str:
     return ""
 
 
+def leading_arrow(text: str) -> str:
+    """板の先頭（いちばん左）にある矢印。先頭が矢印でなければ空。
+
+    先頭以外の矢印は比べない。U ターンの矢印など、Gemini が読むたびに
+    違う記号にする矢印が
+    先頭にある板では、後ろの別の矢印を先頭の矢印と取り違えるため。
+    """
+    normalized = _normalize(text)
+    return normalized[0] if normalized and normalized[0] in ARROWS else ""
+
+
+def _arrows_agree(read_text: str, sign_text: str) -> bool:
+    read_arrow, sign_arrow = leading_arrow(read_text), leading_arrow(sign_text)
+    return not read_arrow or not sign_arrow or read_arrow == sign_arrow
+
+
+def readings_of(sign_text: str) -> list[str]:
+    """板の文字の読み方の候補。
+
+    何回分かの読み取りをつないだ text なら、つないだ全体と1回分ずつ。
+    """
+    parts = [part for part in sign_text.split(READ_SEPARATOR) if part.strip()]
+    return [sign_text] + parts if len(parts) > 1 else [sign_text]
+
+
+def order_similarity(read_text: str, sign_text: str) -> float:
+    """読んだ文字と板の文字の、並び順まで含めた近さ（0〜1）。
+
+    板の文字が何回分かの読み取りをつないだものなら、いちばん近い1回分で比べる。
+    """
+    read = _normalize(read_text)
+    if not read:
+        return 0.0
+    best = 0.0
+    for part in sign_text.split(READ_SEPARATOR):
+        sign = _normalize(part)
+        if sign:
+            best = max(
+                best, difflib.SequenceMatcher(None, read, sign, autojunk=False).ratio()
+            )
+    return best
+
+
 def is_match(read_text: str, sign_text: str) -> bool:
     """読んだ文字が、その板の文字とみなせるか。
 
@@ -285,31 +342,57 @@ def is_match(read_text: str, sign_text: str) -> bool:
     precision, recall = text_overlap(read_text, sign_text)
     if precision < MIN_PRECISION or recall < MIN_RECALL:
         return False
-    read_arrow, sign_arrow = first_arrow(read_text), first_arrow(sign_text)
-    return not read_arrow or not sign_arrow or read_arrow == sign_arrow
+    return _arrows_agree(read_text, sign_text)
 
 
 def best_match(
     read_text: str, candidates: tuple[SignCandidate, ...]
 ) -> tuple[str, float]:
-    """is_match を満たす候補のうち、いちばん近いものと、その F 値。
+    """読んだ文字にいちばん近い候補と、その F 値。
 
-    text のない候補は比べない。
+    重なり（is_match）を満たす板に加えて、少し緩い下限を満たす板も候補にし、
+    F 値と並び順の近さの平均がいちばん高い板を選ぶ。表と裏のように同じ文字を
+    逆の順で持つ板は、並び順で区別する。合格点に届かないか、2番目との差が
+    小さすぎるときは選ばない。text のない候補は比べない。
 
     Args:
         read_text: Gemini が読んだ文字。
         candidates: 候補の案内板。
 
     Returns:
-        (候補の ID, F 値)。満たす候補がなければ ("", いちばん高かった F 値)。
+        (候補の ID, F 値)。選べなければ ("", いちばん高かった F 値)。
     """
-    best_id, best_score, top_score = "", 0.0, 0.0
+    top_score = 0.0
+    scored: list[tuple[float, float, str]] = []
     for candidate in candidates:
-        score = text_match_score(read_text, candidate.text)
-        top_score = max(top_score, score)
-        if score > best_score and is_match(read_text, candidate.text):
-            best_id, best_score = candidate.id, score
-    return (best_id, best_score) if best_id else ("", top_score)
+        if not candidate.text:
+            continue
+        best: tuple[float, float] | None = None
+        for reading in readings_of(candidate.text):
+            score = text_match_score(read_text, reading)
+            top_score = max(top_score, score)
+            precision, recall = text_overlap(read_text, reading)
+            strict = is_match(read_text, reading)
+            relaxed = (
+                precision >= RELAXED_PRECISION
+                and recall >= RELAXED_RECALL
+                and _arrows_agree(read_text, reading)
+            )
+            if not (strict or relaxed):
+                continue
+            combined = (1 - ORDER_WEIGHT) * score + ORDER_WEIGHT * order_similarity(
+                read_text, reading
+            )
+            if best is None or combined > best[0]:
+                best = (combined, score)
+        if best is not None:
+            scored.append((best[0], best[1], candidate.id))
+    scored.sort(reverse=True)
+    if not scored or scored[0][0] < MIN_COMBINED:
+        return "", top_score
+    if len(scored) > 1 and scored[0][0] - scored[1][0] < MIN_LEAD:
+        return "", top_score
+    return scored[0][2], scored[0][1]
 
 
 def _box_of(values: object) -> Box:
