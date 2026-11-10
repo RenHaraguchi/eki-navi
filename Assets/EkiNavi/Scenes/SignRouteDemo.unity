@@ -613,7 +613,7 @@ MonoBehaviour:
   turnSpeed: 6
   lookahead: 4
   offRouteDistance: 3
-  arrivalRadius: 5
+  arrivalRadius: 8
   turnAngleThreshold: 30
   showText: 1
 --- !u!114 &1561950227
