@@ -28,7 +28,7 @@ namespace EkiNavi.Route
         [SerializeField] float distance = 1.2f;
         [Tooltip("画面の中央から少し上にずらす量。足元が矢印で隠れないようにする")]
         [SerializeField] float raise = 0.12f;
-        [SerializeField] float arrowLength = 0.45f;
+        [SerializeField] float arrowLength = 0.32f;
         [Tooltip("前を向いて持ったとき、矢印の表がカメラに見えるように先を上げる最大の角度（度）")]
         [SerializeField] float maxTilt = 40f;
         [Tooltip("向きを変えるときの速さ。大きいほどすぐ向く")]
@@ -224,7 +224,7 @@ namespace EkiNavi.Route
         {
             var shader = Shader.Find("Universal Render Pipeline/Unlit");
             var material = new Material(shader);
-            material.SetColor("_BaseColor", new Color(0.1f, 0.55f, 1f));
+            material.SetColor("_BaseColor", new Color32(0x2F, 0x80, 0xED, 0xFF));  // パレットの青
             return material;
         }
 

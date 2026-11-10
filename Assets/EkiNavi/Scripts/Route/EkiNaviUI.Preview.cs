@@ -18,7 +18,7 @@ namespace EkiNavi.Route
 
         static readonly Key[] PreviewKeys =
         {
-            Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8, Key.Digit9, Key.Digit0, Key.Q, Key.W, Key.E,
+            Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8, Key.Digit9, Key.Digit0, Key.Q, Key.W, Key.E, Key.R,
         };
 
         partial void UpdatePreview()
@@ -28,7 +28,7 @@ namespace EkiNavi.Route
                 if (Keyboard.current[PreviewKeys[i]].wasPressedThisFrame) ShowPreviewState(i + 1);
         }
 
-        /// <summary>プレビューの画面に切り替える（1 駅を選ぶ、2 読み取り、3 読み取りの結果、4 案内、5 曲がり角、6 経路外れ、7 見失った、8 到着、9 向きの注意、0 矢印と逆を向いている、Q 路線、W アカウント設定、E 縦に戻す案内）。</summary>
+        /// <summary>プレビューの画面に切り替える（1 駅を選ぶ、2 読み取り、3 読み取りの結果、4 案内、5 曲がり角、6 経路外れ、7 見失った、8 到着、9 向きの注意、0 矢印と逆を向いている、Q 路線、W アカウント設定、E 縦に戻す案内、R 写真の出典）。</summary>
         public void ShowPreviewState(int number)
         {
             switch (number)
@@ -39,6 +39,7 @@ namespace EkiNavi.Route
                 case 4: directionWarning = false; ShowGuidePreview(StraightPreview(), true); break;
                 case 11: stationIndex = Array.FindIndex(Stations, s => s.ready); Show(Screen.Line); break;
                 case 12: Show(Screen.Account); break;
+                case 14: Show(Screen.Credits); break;
                 case 13: directionWarning = false; ShowGuidePreview(new GuideInfo { Guiding = false, WaitingForPortrait = true }, false); break;
                 case 10: directionWarning = false; ShowGuidePreview(new GuideInfo { Guiding = true, FacingAway = true, RemainingMeters = 90f, TotalMeters = PreviewTotalMeters }, false); break;
                 case 9: directionWarning = true; ShowGuidePreview(StraightPreview(), false); break;
@@ -85,7 +86,8 @@ namespace EkiNavi.Route
             hasGuide = true;
             scanStatusOverride = null;
             alignedSignName = "中央西改札前の案内板";
-            toastUntil = withToast ? Time.unscaledTime + 3f : 0f;
+            toastUntil = withToast ? Time.unscaledTime + ToastSeconds : 0f;
+            toastLift = ToastHiddenLift;
             Show(Screen.Guide);
         }
 
