@@ -318,14 +318,15 @@ def readings_of(sign_text: str) -> list[str]:
 def order_similarity(read_text: str, sign_text: str) -> float:
     """読んだ文字と板の文字の、並び順まで含めた近さ（0〜1）。
 
-    板の文字が何回分かの読み取りをつないだものなら、いちばん近い1回分で比べる。
+    板の文字が何回分かの読み取りをつないだものなら、つないだ全体と1回分ずつのうち、
+    いちばん近いもので比べる（readings_of）。
     """
     read = _normalize(read_text)
     if not read:
         return 0.0
     best = 0.0
-    for part in sign_text.split(READ_SEPARATOR):
-        sign = _normalize(part)
+    for reading in readings_of(sign_text):
+        sign = _normalize(reading)
         if sign:
             best = max(
                 best, difflib.SequenceMatcher(None, read, sign, autojunk=False).ratio()

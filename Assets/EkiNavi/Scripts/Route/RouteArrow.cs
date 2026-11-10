@@ -28,7 +28,7 @@ namespace EkiNavi.Route
         [SerializeField] float distance = 1.2f;
         [Tooltip("画面の中央から少し上にずらす量。足元が矢印で隠れないようにする")]
         [SerializeField] float raise = 0.12f;
-        [SerializeField] float arrowLength = 0.45f;
+        [SerializeField] float arrowLength = 0.32f;
         [Tooltip("前を向いて持ったとき、矢印の表がカメラに見えるように先を上げる最大の角度（度）")]
         [SerializeField] float maxTilt = 40f;
         [Tooltip("向きを変えるときの速さ。大きいほどすぐ向く")]
@@ -39,6 +39,8 @@ namespace EkiNavi.Route
         // 3m だと、看板の位置や経路の線の数 m のずれだけで「外れた」と出たので 6m にした（2026-11-09 の現地の試験）
         [SerializeField] float offRouteDistance = 6f;
         [SerializeField] float arrivalRadius = 5f;
+        [Tooltip("着いたとみなす、経路からの横の距離の上限（m）。外れの判定とは別に、狭くしておく")]
+        [SerializeField] float arrivalLateral = 4.5f;
         [SerializeField] float turnAngleThreshold = 30f;
 
         [Header("開発用")]
@@ -73,7 +75,8 @@ namespace EkiNavi.Route
         /// <summary>画面の下の英語の案内文を出すか（EkiNaviUI があるときは隠す）。</summary>
         public bool ShowText { get => showText; set => showText = value; }
         /// <summary>横向きで撮って合わせ、縦に戻すのを待っている（矢印は出さない）。</summary>
-        public bool WaitingForPortrait => tracker != null && tracker.WaitingForPortrait;
+        // 経路を隠しているとき（位置を見失った）は、縦に戻す案内ではなく見失った案内を出す
+        public bool WaitingForPortrait => tracker != null && tracker.WaitingForPortrait && route != null && route.IsVisible;
 
         /// <summary>着いた状態を消す（UI で最初に戻ったとき）。</summary>
         public void ResetArrival() => IsArrived = false;
@@ -138,7 +141,7 @@ namespace EkiNavi.Route
             var target = path.GuideTarget(position, lookahead, offRouteDistance, out var projection);
             float remaining = path.Length - projection.Along;
 
-            if (remaining <= arrivalRadius && projection.DistanceFromRoute <= offRouteDistance)
+            if (remaining <= arrivalRadius && projection.DistanceFromRoute <= arrivalLateral)
             {
                 arrow.SetActive(false);
                 guidance = "Arrived";
@@ -224,7 +227,7 @@ namespace EkiNavi.Route
         {
             var shader = Shader.Find("Universal Render Pipeline/Unlit");
             var material = new Material(shader);
-            material.SetColor("_BaseColor", new Color(0.1f, 0.55f, 1f));
+            material.SetColor("_BaseColor", new Color32(0x2F, 0x80, 0xED, 0xFF));  // パレットの青
             return material;
         }
 

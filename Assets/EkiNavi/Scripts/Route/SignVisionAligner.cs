@@ -39,6 +39,10 @@ namespace EkiNavi.Route
         [Tooltip("送る画像の長辺（px）。大きいほど遠くの文字が読めるが、送るのに時間がかかる")]
         // 小さい文字を読みやすくするため、画面と同じ解像度で送る（2026-11-09 の試験で 1280 から上げた）
         [SerializeField] int maxLongSide = 1920;
+        [Tooltip("四隅の当てはめを使う、残差の上限（画像の縦に対する割合。0.012 は縦 1920px で約 23px）")]
+        [SerializeField] float maxFitRms = 0.012f;
+        [Tooltip("四隅の当てはめで、逆の向きの残差が選んだ向きの何倍以上なら左右を信じるか")]
+        [SerializeField] float minSideConfidence = 1.5f;
         [Range(30, 95)]
         [SerializeField] int jpegQuality = 80;
         [Tooltip("ぶれの少ない1枚を選ぶために写すフレーム数")]
@@ -306,6 +310,18 @@ namespace EkiNavi.Route
             {
                 // 四隅から、斜めから見ても板の向きが分かる。左右が決まらないときは正面とみなした向き
                 source = sideKnown ? $"corners, {Mathf.Acos(Mathf.Clamp01(ratio)) * Mathf.Rad2Deg:0} deg" : "corners, front";
+                // 四隅の4点すべてに当てはめ直す。上下の辺の遠近も使うので、斜めの角度が小さくても左右を決めやすい
+                if (SignVisionGeometry.TryFitRectangle(view,
+                        Back(c[0].x, c[0].y), Back(c[1].x, c[1].y), Back(c[2].x, c[2].y), Back(c[3].x, c[3].y),
+                        sign.widthMeters, sign.heightMeters, position, normal,
+                        out var fitPosition, out var fitNormal, out var fitRms, out var sideConfidence)
+                    && fitRms <= maxFitRms && sideConfidence >= minSideConfidence)
+                {
+                    position = fitPosition;
+                    normal = fitNormal;
+                    var toCamera = new Vector2(view.Position.x - position.x, view.Position.z - position.z);
+                    source = $"fit, {Vector2.Angle(normal, toCamera):0} deg";
+                }
             }
             else if (box.yMax > box.yMin && box.xMax > box.xMin &&
                      SignVisionGeometry.TryLocateFromVerticalLine(view,
@@ -336,10 +352,9 @@ namespace EkiNavi.Route
             // 横向きと縦向きで同じ看板を撮ったときに比べられるよう、求めた看板の向きとカメラの向きを残す
             var camForward = view.Rotation * Vector3.forward;
             Debug.Log($"[EkiNavi] 看板の位置: {sign.id} {source}、距離 {distance:0.0} m、看板の表の向き {Azimuth.Of(normal):0} 度、カメラの向き {Azimuth.Of(new Vector2(camForward.x, camForward.z)):0} 度、画像の回転 {turn}");
-            // 向きが確かなのは、四隅か壁の面を使えたときだけ。3m より遠いと四隅のずれに負けやすい（試算）
-            DirectionUncertain = source == "front" || source == "corners, front" || (source.StartsWith("corners") && distance > 3.5f);
-            if (DirectionUncertain)
-                status += "  Direction may be off. Scan again within 3 m";
+            // 遠いというだけでは「向きがずれているかもしれません」を出さない（四隅の当てはめで遠くでも向きを出せるため）。
+            // 距離と求め方はログと status に残る
+            DirectionUncertain = false;
             Aligned?.Invoke(sign);
         }
 
