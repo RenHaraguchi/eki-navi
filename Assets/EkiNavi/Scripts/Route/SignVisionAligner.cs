@@ -122,6 +122,61 @@ namespace EkiNavi.Route
             if (planeManager == null) planeManager = FindFirstObjectByType<ARPlaneManager>();
         }
 
+        void Start()
+        {
+            // 案内板の一覧はサーバーに置く（地下1階の看板はリポジトリにも APK にも入れない）。
+            // 起動したら GET /v1/station から取り、取れなければ同梱の一覧のまま使う
+            if (!string.IsNullOrWhiteSpace(serverUrl)) StartCoroutine(LoadStationSigns(3));
+        }
+
+        bool stationLoaded;
+        bool stationLoading;
+
+        /// <summary>サーバーの一覧を取り、SignRouteAligner の一覧に入れる。失敗したら間を空けて attempts 回まで試す。</summary>
+        IEnumerator LoadStationSigns(int attempts)
+        {
+            if (stationLoaded) yield break;
+            if (stationLoading)
+            {
+                // 起動時の取得が終わるのを待つ
+                while (stationLoading) yield return null;
+                yield break;
+            }
+            stationLoading = true;
+            try
+            {
+                for (int i = 0; i < attempts && !stationLoaded; i++)
+                {
+                    if (i > 0) yield return new WaitForSecondsRealtime(2f * i);
+                    using (var request = UnityWebRequest.Get(serverUrl.TrimEnd('/') + "/v1/station"))
+                    {
+                        request.timeout = Mathf.CeilToInt(timeoutSeconds);
+                        yield return request.SendWebRequest();
+                        if (request.result != UnityWebRequest.Result.Success)
+                        {
+                            Debug.LogWarning($"[EkiNavi] 案内板の一覧をサーバーから取れませんでした（{i + 1}回目）: {request.responseCode} {request.error}");
+                            continue;
+                        }
+                        try
+                        {
+                            var server = SignCatalog.Parse(request.downloadHandler.text);
+                            aligner.UseServerCatalog(server);
+                            stationLoaded = true;
+                            Debug.Log($"[EkiNavi] 案内板の一覧をサーバーから読みました: {server.Signs.Count} 枚（合わせて {aligner.Catalog.Signs.Count} 枚）");
+                        }
+                        catch (FormatException e)
+                        {
+                            Debug.LogWarning($"[EkiNavi] サーバーの案内板の一覧を読めませんでした: {e.Message}");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                stationLoading = false;
+            }
+        }
+
         void OnDestroy()
         {
             if (best != null) best.Release();
@@ -160,6 +215,13 @@ namespace EkiNavi.Route
                 status = "Hold still...";
                 CaptureView view = default;
                 yield return CaptureSharpest(v => view = v);
+
+                // 起動時にサーバーの一覧を取れていなければ、ここでもう一度だけ試す（圏外から戻ったときなど）
+                if (!stationLoaded)
+                {
+                    status = "Loading signs...";
+                    yield return LoadStationSigns(1);
+                }
 
                 var candidates = CandidateIds();
                 if (candidates.Length == 0)

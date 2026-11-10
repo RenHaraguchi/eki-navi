@@ -69,6 +69,22 @@ namespace EkiNavi.Alignment.Tests
         }
 
         [Test]
+        public void MergePrefersTheServerAndKeepsBundledOnlySigns()
+        {
+            var server = SignCatalog.Parse(
+                "{\"signs\": [{\"id\": \"A\", \"imageName\": \"a\", \"x\": 9}, {\"id\": \"C\", \"imageName\": \"c\"}]}");
+            var bundled = SignCatalog.Parse(
+                "{\"signs\": [{\"id\": \"A\", \"imageName\": \"a\", \"x\": 1}, {\"id\": \"B\", \"imageName\": \"b\"}, {\"id\": \"D\", \"imageName\": \"c\"}]}");
+            var merged = SignCatalog.Merge(server, bundled);
+            Assert.That(merged.Signs.Select(s => s.id), Is.EqualTo(new[] { "A", "C", "B" }));
+            Assert.That(merged.TryGetById("A", out var a), Is.True);
+            Assert.That(a.x, Is.EqualTo(9f));
+            Assert.That(merged.TryGetById("D", out _), Is.False, "imageName がサーバーの板と重なる同梱の板は足さない");
+            Assert.That(SignCatalog.Merge(null, bundled), Is.SameAs(bundled));
+            Assert.That(SignCatalog.Merge(server, null), Is.SameAs(server));
+        }
+
+        [Test]
         public void AlignUsesTheCorrections()
         {
             var sign = new SignEntry

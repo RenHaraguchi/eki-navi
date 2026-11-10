@@ -42,7 +42,8 @@ namespace EkiNavi.Alignment
 
     /// <summary>
     /// 案内板の一覧。アプリに同梱した signs.json（Assets/EkiNavi/Data/signs.json）か、
-    /// GET /v1/station の応答から作る。参照画像ライブラリの名前（imageName）で引ける。
+    /// GET /v1/station の応答から作る（StationSignLoader がサーバーの一覧と同梱の一覧を合わせる）。
+    /// 参照画像ライブラリの名前（imageName）で引ける。
     /// </summary>
     public class SignCatalog
     {
@@ -91,6 +92,23 @@ namespace EkiNavi.Alignment
             if (file?.signs == null || file.signs.Length == 0)
                 throw new FormatException("案内板の一覧に signs がありません");
             return new SignCatalog(new List<SignEntry>(file.signs));
+        }
+
+        /// <summary>
+        /// サーバーの一覧（primary）を先にし、アプリに同梱した一覧（fallback）のうち、
+        /// id も imageName もサーバーの一覧にない板だけを後ろに足す。同じ id ならサーバーの値を使う。
+        /// </summary>
+        public static SignCatalog Merge(SignCatalog primary, SignCatalog fallback)
+        {
+            if (primary == null) return fallback;
+            if (fallback == null) return primary;
+            var merged = new List<SignEntry>(primary.signs);
+            foreach (var s in fallback.signs)
+            {
+                if (primary.byId.ContainsKey(s.id) || primary.byImageName.ContainsKey(s.imageName)) continue;
+                merged.Add(s);
+            }
+            return new SignCatalog(merged);
         }
 
         public bool TryGetById(string id, out SignEntry sign) => byId.TryGetValue(id ?? "", out sign);
