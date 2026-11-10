@@ -53,7 +53,8 @@ namespace EkiNavi.EditorTools
 
             // NewScene は使われていないアセットを解放するので、ライブラリはシーンを作ってから読む
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            var library = GetOrCreateLibrary();
+            // 案内板の写真はリポジトリに入れないので、ふだんは参照画像ライブラリがない
+            var library = AssetDatabase.LoadAssetAtPath<XRReferenceImageLibrary>(LibraryPath);
 
             // AR Foundation の標準メニューで、AR Session と XR Origin を置く
             EditorApplication.ExecuteMenuItem("GameObject/XR/AR Session");
@@ -68,17 +69,23 @@ namespace EkiNavi.EditorTools
             if (!origin.TryGetComponent<ARTrackedImageManager>(out var imageManager))
                 imageManager = origin.gameObject.AddComponent<ARTrackedImageManager>();
 
-            var so = new SerializedObject(imageManager);
-            var libraryProperty = so.FindProperty("m_SerializedLibrary");
-            if (libraryProperty != null)
+            SerializedObject so;
+            if (library != null)
             {
-                libraryProperty.objectReferenceValue = library;
-                so.ApplyModifiedPropertiesWithoutUndo();
+                so = new SerializedObject(imageManager);
+                var libraryProperty = so.FindProperty("m_SerializedLibrary");
+                if (libraryProperty != null)
+                {
+                    libraryProperty.objectReferenceValue = library;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+                else
+                {
+                    imageManager.referenceLibrary = library;
+                }
             }
-            else
-            {
-                imageManager.referenceLibrary = library;
-            }
+            // 参照画像がなければ ARCore の画像認識は使わない（読み取りは Gemini で行う）
+            imageManager.enabled = library != null && library.count > 0;
 
             var routeGo = new GameObject("Route");
             var renderer = routeGo.AddComponent<RouteRenderer>();
@@ -156,20 +163,10 @@ namespace EkiNavi.EditorTools
             scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
 
-            Debug.Log($"[EkiNavi] {ScenePath} を経路 {routeName} で作りました。参照画像は {LibraryPath} に足してください（{library.count} 枚登録済み）");
+            int imageCount = library != null ? library.count : 0;
+            Debug.Log($"[EkiNavi] {ScenePath} を経路 {routeName} で作りました（参照画像 {imageCount} 枚）");
             Selection.activeObject = library;
         }
 
-        static XRReferenceImageLibrary GetOrCreateLibrary()
-        {
-            var library = AssetDatabase.LoadAssetAtPath<XRReferenceImageLibrary>(LibraryPath);
-            if (library != null) return library;
-
-            Directory.CreateDirectory(Path.GetDirectoryName(LibraryPath));
-            library = ScriptableObject.CreateInstance<XRReferenceImageLibrary>();
-            AssetDatabase.CreateAsset(library, LibraryPath);
-            AssetDatabase.SaveAssets();
-            return library;
-        }
     }
 }

@@ -52,8 +52,8 @@ namespace EkiNavi.EditorTools
             try
             {
                 SignRouteDemoSceneBuilder.Build();
-                var count = RegisterImages();
-                if (count == 0) throw new Exception("参照画像が1枚も登録できませんでした");
+                // 案内板の写真はリポジトリに入れないので、登録が 0 枚でも続ける（読み取りは Gemini で行う）
+                RegisterImages();
                 Build();
                 EditorApplication.Exit(0);
             }
@@ -67,8 +67,12 @@ namespace EkiNavi.EditorTools
         /// <summary>signs.json を読み、画像があるものをライブラリに登録する。登録した枚数を返す</summary>
         public static int RegisterImages()
         {
-            var library = AssetDatabase.LoadAssetAtPath<XRReferenceImageLibrary>(LibraryPath)
-                ?? throw new Exception($"{LibraryPath} がありません");
+            var library = AssetDatabase.LoadAssetAtPath<XRReferenceImageLibrary>(LibraryPath);
+            if (library == null)
+            {
+                Debug.Log("[EkiNavi] 参照画像ライブラリがないので、画像の登録は飛ばします");
+                return 0;
+            }
             var json = AssetDatabase.LoadAssetAtPath<TextAsset>(SignsPath)
                 ?? throw new Exception($"{SignsPath} がありません");
             var list = JsonUtility.FromJson<SignList>(json.text);
