@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +21,7 @@ from app.catalog import build_targets
 from app.config import Settings, load_settings
 from app.destination import DestinationResolver, ResolvedCandidate
 from app.gemini import Classifier, GeminiClassifier
+from app.integrity import Decoder, IntegrityGate
 from app.limits import WindowLimiter
 from app.sign_vision import (
     GeminiSignIdentifier,
@@ -223,13 +224,17 @@ def _add_sign_vision_route(
     station: Station,
     identifier: SignIdentifier | None,
     daily: WindowLimiter,
+    gate: IntegrityGate,
 ) -> None:
     """カメラの画像から案内板を見分ける API。"""
 
     @app.post("/v1/sign/identify", response_model=schemas.SignIdentifyResponse)
     def identify_sign(
         body: schemas.SignIdentifyRequest,
+        x_integrity_token: str = Header(default="", alias="X-Integrity-Token"),
     ) -> schemas.SignIdentifyResponse | JSONResponse:
+        if not gate.allows(x_integrity_token):
+            return _error_response(401, "unauthorized", "アプリの要求ではありません")
         try:
             image = decode_image(body.image_base64, body.mime_type)
         except InvalidImageError as error:
@@ -344,6 +349,7 @@ def create_app(
     settings: Settings | None = None,
     classifier: Classifier | None = None,
     sign_identifier: SignIdentifier | None = None,
+    integrity_decoder: Decoder | None = None,
 ) -> FastAPI:
     """サーバーを組み立てる。
 
@@ -351,6 +357,7 @@ def create_app(
         settings: 設定。省略時は環境変数から読む。
         classifier: Gemini の判定処理。テストで差し替えるときに渡す。
         sign_identifier: 案内板を見分ける処理。テストで差し替えるときに渡す。
+        integrity_decoder: Play Integrity のトークンを読む処理。テストで差し替える。
 
     Returns:
         FastAPI のアプリ。
@@ -374,10 +381,14 @@ def create_app(
         station,
         _build_sign_identifier(resolved, sign_identifier),
         WindowLimiter(resolved.gemini_daily_limit, SECONDS_PER_DAY),
+        IntegrityGate(resolved, integrity_decoder),
     )
     _add_page_routes(app, station, resolved)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     LOGGER.info(
-        "起動しました: 版 %s、行き先の判定 %s", station.version, resolved.gemini_backend
+        "起動しました: 版 %s、行き先の判定 %s、Play Integrity %s",
+        station.version,
+        resolved.gemini_backend,
+        resolved.integrity_mode,
     )
     return app

@@ -45,6 +45,10 @@ Gemini のキーがなくても動きます（`GEMINI_BACKEND=stub`、既定）�
 | `API_RATE_PER_MINUTE` | 1分あたりの経路 API の上限（インスタンスごと、全員の合計） |
 | `GEMINI_RATE_PER_MINUTE` | 1分あたりの行き先 API と、案内板の判別 API それぞれの上限（インスタンスごと、全員の合計） |
 | `DEMO_VIDEO_URL`、`DEMO_APK_URL` | ページに出すリンク |
+| `INTEGRITY_MODE` | `/v1/sign/identify` で Play Integrity のトークン（`X-Integrity-Token`）を確かめるか。`off`（既定）、`log`（記録だけ）、`enforce`（通らなければ 401） |
+| `INTEGRITY_PACKAGE` | 期待するアプリのパッケージ名。既定は `com.ekinavi.app` |
+| `INTEGRITY_CERT_SHA256` | 許すアプリの署名証明書の SHA-256（keytool の `AB:CD:...` の形でよい）。カンマ区切りで複数。空なら確かめない |
+| `INTEGRITY_MAX_AGE_SECONDS` | トークンの古さの上限（秒）。既定 600 |
 
 ## 経路パックを作り直す
 
