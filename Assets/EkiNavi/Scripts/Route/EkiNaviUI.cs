@@ -27,7 +27,7 @@ namespace EkiNavi.Route
     /// </summary>
     public partial class EkiNaviUI : MonoBehaviour
     {
-        enum Screen { Stations, Line, Account, Credits, Scan, Guide, Arrived }
+        enum Screen { Language, Stations, Line, Account, Credits, Scan, Guide, Arrived }
 
         // チームのカラーパレット（白、ライトグレー、グレー、チャコール、青）
         // Success と Warning はパレットにない、到着と経路外れの専用の色
@@ -128,15 +128,15 @@ namespace EkiNavi.Route
             ("東京メトロ丸ノ内線", "Marunouchi Line", "#F62E36", "M"),
         };
 
-        // 文言（言語は日本語と英語。ほかの言語は英語で出す）
+        // 文言（日本語と英語。中国語と韓国語は EkiNaviUI.Language.cs）
         static readonly Dictionary<string, (string ja, string en)> Words = new Dictionary<string, (string, string)>
         {
             ["app"] = ("駅ナビAR", "Eki Navi AR"),
-            ["destination"] = ("乗り換える路線", "Line to transfer to"),
+            ["destination"] = ("乗り換える路線", "Select a line to transfer to"),
             ["soon"] = ("準備中", "Coming soon"),
             ["start"] = ("案内を始める", "Start"),
             ["scanSub"] = ("カメラを向けて「読み取る」を押してください", "Then tap Scan"),
-            ["scanTitle"] = ("近くの案内板を映してください", "Point at a nearby sign"),
+            ["scanTitle"] = ("近くの案内板を映してください", "Scan a nearby sign"),
             ["scan"] = ("読み取る", "Scan"),
             ["scanning"] = ("読み取り中…", "Scanning..."),
             ["back"] = ("← 路線を選ぶ", "← Select line"),
@@ -154,10 +154,10 @@ namespace EkiNavi.Route
             ["photoCredit"] = ("写真の出典", "Photo credits"),
             ["cropped"] = ("正方形に切り抜き", "cropped to a square"),
             ["version"] = ("バージョン", "Version"),
-            ["backToGuide"] = ("← 案内に戻る", "← Back to guide"),
+            ["backToGuide"] = ("← 案内に戻る", "← Back to navigate"),
             ["scanHold"] = ("そのまま動かさないでください", "Hold still..."),
             ["scanChecking"] = ("案内板を確かめています…", "Checking the sign..."),
-            ["scanNoSign"] = ("登録された案内板が見つかりません。\n案内板にカメラを向けて、もう一度押してください", "No registered sign found.\nPoint at a sign and try again"),
+            ["scanNoSign"] = ("登録された案内板が見つかりません。\n案内板にカメラを向けて、もう一度押してください", "Sign not recognized\nPoint at a sign and try again"),
             ["scanUnavailable"] = ("今は案内板を確かめられません。もう一度試してください", "Cannot check the sign now. Try again"),
             ["scanTooFar"] = ("案内板をうまく測れません。近づいてもう一度試してください", "Could not measure the sign. Move closer and try again"),
             ["scanFailed"] = ("読み取れませんでした。もう一度試してください", "Could not scan. Try again"),
@@ -171,7 +171,7 @@ namespace EkiNavi.Route
             ["straight"] = ("このまま まっすぐ", "Go straight"),
             ["routeStart"] = ("スタート", "Start"),
             ["routeGoal"] = ("ゴール", "Goal"),
-            ["offRoute"] = ("経路から外れています", "You are off the route"),
+            ["offRoute"] = ("経路から外れています", "You’re off route."),
             ["upright"] = ("スマホを縦に\n戻してください", "Hold your phone upright"),
             ["uprightSub"] = ("縦に戻すと矢印が出ます", "The arrow appears when the phone is upright"),
             ["offRouteSub"] = ("矢印の向きに戻ってください（{0} m）", "Follow the arrow back ({0} m)"),
@@ -199,8 +199,7 @@ namespace EkiNavi.Route
             ["restart"] = ("最初に戻る", "Back to start"),
         };
 
-        string T(string key) => language == "ja" ? Words[key].ja : Words[key].en;
-        string LineName(int index) => language == "ja" ? Destinations[index].ja : Destinations[index].en;
+        string LineName(int index) => LocalName(Destinations[index].ja, Destinations[index].en);
         /// <summary>行き先。「小田急線の乗り換え改札」</summary>
         string Goal => string.Format(T("goal"), LineName(destinationIndex));
         string FromName
@@ -213,7 +212,7 @@ namespace EkiNavi.Route
         }
         /// <summary>「新宿駅：JR改札内 → 小田急線の乗り換え改札」</summary>
         string GuideRoute => stationIndex < 0 ? "" : string.Format(T("guideRoute"),
-            string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en),
+            string.Format(T("stationTitle"), LocalName(Stations[stationIndex].ja, Stations[stationIndex].en)),
             string.Format(T("fromGates"), FromName), Goal);
 
         // 路線の記号 → MapsRouteLink の路線の id
@@ -230,11 +229,13 @@ namespace EkiNavi.Route
             circle = RoundedSprite(128);
             gear = GearSprite();
             barCorner = RoundedSprite(12);  // バーの高さ 24 の半分。端が半円になる
-            string savedLanguage = PlayerPrefs.GetString(LanguageKey, "ja");
+            // 言語の保存がなければ初回とみなし、端末の言語を選んだ状態で言語の画面を出す
+            bool firstRun = !PlayerPrefs.HasKey(LanguageKey);
+            string savedLanguage = firstRun ? DeviceLanguage() : PlayerPrefs.GetString(LanguageKey, "ja");
             if (Languages.Contains(savedLanguage)) language = savedLanguage;
             EnsureEventSystem();
             Build();
-            Show(Screen.Stations);
+            Show(firstRun ? Screen.Language : Screen.Stations);
         }
 
         void OnEnable()
@@ -263,11 +264,18 @@ namespace EkiNavi.Route
                     routeLineId = line >= 0 ? result.LineId : null;
                     fromLineId = result.FromLineId ?? "jr";
                     linkMessage = outcome == IncomingLink.Outcome.NoStation ? T("linkNoStation") : "";
+                    if (screen == Screen.Line && outcome == IncomingLink.Outcome.Resolved && line < 0)
+                    {
+                        linkMessage = T("linkNoStation");
+                        linkMessageIsError = true;
+                    }
                     break;
                 case IncomingLink.Outcome.Offline: linkMessage = T("linkOffline"); break;
                 default: linkMessage = T("linkNotMaps"); break;
             }
-            Show(Screen.Stations);
+            // 路線の画面で貼ったときは、選ばれた路線を見せるためにその画面のままにする
+            if (screen == Screen.Line) Refresh();
+            else Show(Screen.Stations);
         }
 
         /// <summary>経路の駅を、出発・乗り換え・到着の順に並べる。案内できる駅（今は新宿）だけ押せる。</summary>
@@ -316,6 +324,7 @@ namespace EkiNavi.Route
             switch (screen)
             {
                 case Screen.Stations:
+                case Screen.Line:
                     if (incomingLink != null && incomingLink.Busy && linkMessage != T("linkChecking"))
                     {
                         linkMessage = T("linkChecking");
@@ -480,6 +489,7 @@ namespace EkiNavi.Route
             // 読み取りの画面を開き直したときは、前の結果を残さない
             if (next == Screen.Scan && vision != null && !vision.Busy) vision.ClearStatus();
             if (next == Screen.Scan) directionWarning = false;
+            if (next == Screen.Line) linkMessage = "";
             foreach (var pair in screens) pair.Value.SetActive(pair.Key == next);
             Refresh();
         }
@@ -499,6 +509,7 @@ namespace EkiNavi.Route
             scaler.matchWidthOrHeight = 0.5f;
             root = canvasGo.transform;
 
+            screens[Screen.Language] = BuildFirstRunLanguage();
             screens[Screen.Stations] = BuildStations();
             screens[Screen.Line] = BuildLine();
             screens[Screen.Account] = BuildAccount();
@@ -579,16 +590,12 @@ namespace EkiNavi.Route
                 foreach (var _ in region.stations) StationTile(gridGo.transform, stationNumber++);
             }
 
-            // Google マップの経路のリンクを貼り付ける
-            var paste = OutlineButton(content.transform, () => { if (incomingLink != null) incomingLink.PasteFromClipboard(); });
-            paste.gameObject.AddComponent<LayoutElement>().preferredHeight = 110;
+            // Google マップから共有されたリンクを読んだ結果の知らせ（貼り付けは路線の画面で行う）
             var hint = Label(content.transform, "", 30, Ink, FontStyle.Bold, TextAnchor.UpperLeft);
             refreshers.Add(() =>
             {
-                paste.GetComponentInChildren<Text>().text = T("fromMaps");
-                bool hasMessage = !string.IsNullOrEmpty(linkMessage);
-                hint.text = hasMessage ? linkMessage : T("fromMapsHint");
-                hint.color = hasMessage && linkMessageIsError ? Warning : Ink;
+                hint.text = linkMessage;
+                hint.color = linkMessageIsError ? Warning : Ink;
             });
 
             var settings = Button(page.transform, Color.white, circle, () => Show(Screen.Account));
@@ -667,7 +674,7 @@ namespace EkiNavi.Route
                 bool ready = stop.stationId != null;
                 var shinjuku = Stations.First(st => st.ready);
                 // 案内できる駅は、こちらの表の名前で出す。ほかはリンクの名前のまま
-                string local = ready ? (language == "ja" ? shinjuku.ja : shinjuku.en) : StopName(stop.name);
+                string local = ready ? LocalName(shinjuku.ja, shinjuku.en) : StopName(stop.name);
                 button.interactable = ready;
                 photoImage.color = ready ? Blue : Paper;
                 if (pictureGo != null) pictureGo.SetActive(ready);
@@ -685,10 +692,16 @@ namespace EkiNavi.Route
             var go = new GameObject("Region", typeof(RectTransform), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             go.GetComponent<LayoutElement>().preferredHeight = 90;
+            // 日本語以外では英語の名前だけを出す
             var left = Label(go.transform, ja, 46, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Stretch(left.gameObject);
             var right = Label(go.transform, en, 32, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
             Stretch(right.gameObject);
+            refreshers.Add(() =>
+            {
+                left.text = language == "ja" ? ja : en;
+                right.text = language == "ja" ? en : "";
+            });
             var line = Panel(go.transform, "Line", Line, null);
             Anchor(line, Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 3));
             return go;
@@ -740,6 +753,11 @@ namespace EkiNavi.Route
             Anchor(ja.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 50), new Vector2(-6, StationLabelHeight - 4));
             var en = Label(go.transform, station.en, 28, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Anchor(en.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 50));
+            refreshers.Add(() =>
+            {
+                ja.text = language == "ja" ? station.ja : station.en;
+                en.text = language == "ja" ? station.en : "";
+            });
         }
 
         // 画面の幅に合わせて、駅の四角が 4 列でちょうど並ぶ大きさにする
@@ -761,7 +779,7 @@ namespace EkiNavi.Route
             var page = Panel(root, "Line", Color.white, null);
             Stretch(page);
             PageHeader(page.transform, () => stationIndex >= 0
-                ? string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en)
+                ? string.Format(T("stationTitle"), LocalName(Stations[stationIndex].ja, Stations[stationIndex].en))
                 : "", () => Show(Screen.Stations));
 
             var body = new GameObject("Body", typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -782,6 +800,19 @@ namespace EkiNavi.Route
                 Anchor(badge, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(30, -36), new Vector2(-30, 36));
                 refreshers.Add(() => Highlight(item, destinationIndex == index));
             }
+
+            // Google マップの経路のリンクで、行き先の路線を選ぶ
+            var paste = OutlineButton(body.transform, () => { if (incomingLink != null) incomingLink.PasteFromClipboard(); });
+            ((RectTransform)paste.transform).sizeDelta = new Vector2(0, 110);
+            var hint = Label(body.transform, "", 30, Ink, FontStyle.Bold, TextAnchor.UpperLeft);
+            ((RectTransform)hint.transform).sizeDelta = new Vector2(0, 120);
+            refreshers.Add(() =>
+            {
+                paste.GetComponentInChildren<Text>().text = T("fromMaps");
+                bool hasMessage = !string.IsNullOrEmpty(linkMessage);
+                hint.text = hasMessage ? linkMessage : T("fromMapsHint");
+                hint.color = hasMessage && linkMessageIsError ? Warning : Ink;
+            });
 
             var start = PrimaryButton(page.transform, () => { linesSkipped = false; Show(Screen.Scan); });
             Anchor(start.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
@@ -880,7 +911,7 @@ namespace EkiNavi.Route
             Anchor(by.gameObject, Vector2.zero, new Vector2(1, 0.5f), new Vector2(40, 0), new Vector2(-40, -6));
             refreshers.Add(() =>
             {
-                title.text = language == "ja" ? ja + "駅" : en + " Station";
+                title.text = string.Format(T("stationTitle"), LocalName(ja, en));
                 by.text = $"{author} / {license} / {T("cropped")}";
             });
         }
@@ -937,7 +968,7 @@ namespace EkiNavi.Route
                 code.text = line.code;
                 code.color = lineColor;
                 pillImage.color = lineColor;
-                name.text = language == "ja" ? line.ja : line.en;
+                name.text = LocalName(line.ja, line.en);
                 pillSize.preferredWidth = name.preferredWidth + 44f;
             });
             return row;
@@ -1305,7 +1336,8 @@ namespace EkiNavi.Route
         {
             try
             {
-                string[] preferred = { "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", "Meiryo" };
+                // 中国語と韓国語の文字も出せるよう、それぞれのフォントも候補に入れる
+                string[] preferred = { "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", "Meiryo", "PingFang SC", "Hiragino Sans GB", "Apple SD Gothic Neo", "Malgun Gothic" };
                 var installed = Font.GetOSInstalledFontNames();
                 var names = preferred.Where(installed.Contains)
                     .Concat(installed.Where(n => n.Contains("CJK") || n.Contains("JP")))
