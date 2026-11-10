@@ -231,7 +231,7 @@ namespace EkiNavi.Route
         {
             bool busy = scanBusyOverride || (vision != null && vision.Busy);
             scanButton.interactable = !busy;
-            scanButton.GetComponentInChildren<Text>(true).text = busy ? T("scanning") : T("scan");
+            scanButton.GetComponentInChildren<Text>().text = busy ? T("scanning") : T("scan");
             string status = scanStatusOverride ?? (vision != null ? ScanMessage(vision.Status) : "");
             scanStatusPill.SetActive(!string.IsNullOrEmpty(status));
             scanStatus.text = status;
@@ -371,7 +371,7 @@ namespace EkiNavi.Route
             if (onBack == null) return;
             var back = TextButton(header.transform, onBack);
             Anchor(back.gameObject, Vector2.zero, Vector2.zero, new Vector2(30, 26), new Vector2(130, 126));
-            var arrowLabel = back.GetComponentInChildren<Text>(true);
+            var arrowLabel = back.GetComponentInChildren<Text>();
             arrowLabel.text = "←";
             arrowLabel.fontSize = 60;
             arrowLabel.alignment = TextAnchor.MiddleCenter;
@@ -534,7 +534,7 @@ namespace EkiNavi.Route
 
             var start = PrimaryButton(page.transform, () => Show(Screen.Scan));
             Anchor(start.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
-            refreshers.Add(() => start.GetComponentInChildren<Text>(true).text = T("start"));
+            refreshers.Add(() => start.GetComponentInChildren<Text>().text = T("start"));
             return page;
         }
 
@@ -646,16 +646,16 @@ namespace EkiNavi.Route
 
             var back = TextButton(page.transform, () => Show(Screen.Line));
             Anchor(back.gameObject, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -110), new Vector2(360, -20));
-            refreshers.Add(() => back.GetComponentInChildren<Text>(true).text = T("back"));
+            refreshers.Add(() => back.GetComponentInChildren<Text>().text = T("back"));
 
             // 読み取りに失敗しても、案内の途中なら案内へ戻れるようにする
             var backToGuide = TextButton(page.transform, () => Show(Screen.Guide));
             Anchor(backToGuide.gameObject, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-480, -110), new Vector2(-40, -20));
-            backToGuide.GetComponentInChildren<Text>(true).alignment = TextAnchor.MiddleRight;
+            backToGuide.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleRight;
             refreshers.Add(() =>
             {
                 backToGuide.gameObject.SetActive(hasGuide);
-                backToGuide.GetComponentInChildren<Text>(true).text = T("backToGuide");
+                backToGuide.GetComponentInChildren<Text>().text = T("backToGuide");
             });
 
             // 案内板を入れる枠（四隅のかぎ）
@@ -719,7 +719,7 @@ namespace EkiNavi.Route
             progressFill.anchorMax = new Vector2(0f, 1f);
             var rescan = OutlineButton(bar.transform, () => Show(Screen.Scan));
             Anchor(rescan.gameObject, new Vector2(0.62f, 0.5f), new Vector2(1, 1), new Vector2(10, 4), new Vector2(-44, -24));
-            refreshers.Add(() => rescan.GetComponentInChildren<Text>(true).text = T("rescan"));
+            refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
 
             guideOverlay = BuildGuideOverlay(page.transform);
             return page;
@@ -737,7 +737,7 @@ namespace EkiNavi.Route
             Anchor(overlaySub.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, -30), new Vector2(-50, 60));
             var rescan = PrimaryButton(overlay.transform, () => Show(Screen.Scan));
             Anchor(rescan.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(110, -270), new Vector2(-110, -100));
-            refreshers.Add(() => rescan.GetComponentInChildren<Text>(true).text = T("rescan"));
+            refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
             return overlay;
         }
 
@@ -816,7 +816,7 @@ namespace EkiNavi.Route
             button.GetComponent<Image>().color = on ? Hex("#E8EDFF") : Color.white;
             var outline = button.GetComponent<Outline>();
             if (outline != null) outline.effectColor = on ? Blue : Line;
-            var label = button.GetComponentInChildren<Text>(true);
+            var label = button.GetComponentInChildren<Text>();
             if (label != null) label.color = !button.interactable ? SubInk : on ? Navy : Ink;
         }
 
