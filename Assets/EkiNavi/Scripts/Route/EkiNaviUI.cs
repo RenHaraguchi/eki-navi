@@ -27,7 +27,7 @@ namespace EkiNavi.Route
     /// </summary>
     public partial class EkiNaviUI : MonoBehaviour
     {
-        enum Screen { Language, Stations, Line, Account, Credits, Scan, Guide, Arrived }
+        enum Screen { Language, Stations, ConfirmRoute, Line, Account, Credits, Scan, Guide, Arrived }
 
         // チームのカラーパレット（白、ライトグレー、グレー、チャコール、青）
         // Success と Warning はパレットにない、到着と経路外れの専用の色
@@ -71,10 +71,9 @@ namespace EkiNavi.Route
         bool hasGuide;  // 一度でも位置が合って案内を始めたか（読み取りの画面から案内へ戻れる）
 
         // Google マップの経路のリンクから読んだもの
-        readonly List<(string name, string role, string stationId)> routeStops = new List<(string, string, string)>();  // 出発・乗り換え・到着
-        string routeLineId;            // 乗り換える路線（決まれば路線の画面を飛ばす）
+        string routeOriginName = "", routeDestinationName = "";  // 確認の画面に出す、経路の両端の駅名
         string fromLineId = "jr";      // 案内を始める改札の中（どの会社の改札内か）
-        bool linesSkipped;             // 路線の画面を飛ばして読み取りに来たか（戻る先が駅の画面になる）
+        bool linesSkipped;             // 確認の画面から読み取りに来たか（戻る先が駅の画面になる）
         string linkMessage = "";       // リンクを読んだ結果の知らせ（駅を選ぶ画面に出す）
         bool linkMessageIsError;
 
@@ -131,7 +130,7 @@ namespace EkiNavi.Route
         // 文言（日本語と英語。中国語と韓国語は EkiNaviUI.Language.cs）
         static readonly Dictionary<string, (string ja, string en)> Words = new Dictionary<string, (string, string)>
         {
-            ["app"] = ("駅ナビAR", "Eki Navi AR"),
+            ["app"] = ("ARrow", "ARrow"),
             ["destination"] = ("乗り換える路線", "Select a line to transfer to"),
             ["soon"] = ("準備中", "Coming soon"),
             ["start"] = ("案内を始める", "Start"),
@@ -181,16 +180,17 @@ namespace EkiNavi.Route
             ["fromGates"] = ("{0}改札内", "Inside {0} gates"),
             ["guideRoute"] = ("{0}：{1} → {2}", "{0}: {1} → {2}"),
             ["backStations"] = ("← 駅を選ぶ", "← Select station"),
-            ["routeStops"] = ("Google マップの経路", "Google Maps route"),
-            ["roleFrom"] = ("出発", "From"),
-            ["roleTransfer"] = ("乗り換え", "Transfer"),
-            ["roleTo"] = ("到着", "To"),
             ["fromMaps"] = ("Google マップの経路を貼り付ける", "Paste a Google Maps route"),
-            ["fromMapsHint"] = ("Google マップで経路を出し、「共有」から駅ナビAR を選んでも読み込めます", "You can also share a route from Google Maps to Eki Navi AR"),
+            ["fromMapsHint"] = ("Google マップで経路を出し、「共有」からARrow を選んでも読み込めます", "You can also share a route from Google Maps to ARrow"),
             ["linkChecking"] = ("経路を確かめています…", "Checking the route..."),
             ["linkNotMaps"] = ("Google マップの経路のリンクが見つかりません。リンクをコピーしてから押してください", "No Google Maps route link found. Copy the link first"),
             ["linkNoStation"] = ("この経路では、案内できる駅で乗り換えません", "This route has no transfer at a supported station"),
             ["linkOffline"] = ("経路を確かめられません。ネットにつないで、もう一度試してください", "Could not check the route. Connect to the internet and try again"),
+            ["confirmTitle"] = ("経路の確認", "Confirm route"),
+            ["confirmRecognized"] = ("{0}駅で、{1}への乗り換えとして認識しました", "Recognized as a transfer to {1} at {0} Station"),
+            ["confirmAsk"] = ("これでいいですか？", "Is this correct?"),
+            ["confirmOk"] = ("OK", "OK"),
+            ["confirmCancel"] = ("やり直す", "Cancel"),
             ["rescan"] = ("読み取り直す", "Rescan"),
             ["lost"] = ("位置を見失いました", "Lost your position"),
             ["lostSub"] = ("案内板を読み取り直してください", "Scan a sign again"),
@@ -250,7 +250,7 @@ namespace EkiNavi.Route
             if (incomingLink != null) incomingLink.Handled -= OnLink;
         }
 
-        /// <summary>Google マップの経路のリンクを読み終えたとき。経路の駅を、駅を選ぶ画面の上に並べる。</summary>
+        /// <summary>Google マップの経路のリンクを読み終えたとき。駅と路線が決まれば確認の画面を出し、決まらなければ駅を選ぶ画面に戻す。</summary>
         void OnLink(IncomingLink.Outcome outcome, MapsRouteLink.Result result)
         {
             linkMessageIsError = outcome != IncomingLink.Outcome.Resolved;
@@ -258,16 +258,23 @@ namespace EkiNavi.Route
             {
                 case IncomingLink.Outcome.Resolved:
                 case IncomingLink.Outcome.NoStation:
-                    SetRouteStops(result);
+                    routeOriginName = result.OriginName ?? "";
+                    routeDestinationName = result.DestinationName ?? "";
                     int line = Array.FindIndex(Destinations, d => LineId(d.code) == result.LineId);
                     if (line >= 0) destinationIndex = line;
-                    routeLineId = line >= 0 ? result.LineId : null;
                     fromLineId = result.FromLineId ?? "jr";
                     linkMessage = outcome == IncomingLink.Outcome.NoStation ? T("linkNoStation") : "";
-                    if (screen == Screen.Line && outcome == IncomingLink.Outcome.Resolved && line < 0)
+                    if (outcome == IncomingLink.Outcome.Resolved && line < 0)
                     {
                         linkMessage = T("linkNoStation");
                         linkMessageIsError = true;
+                    }
+                    if (outcome == IncomingLink.Outcome.Resolved && line >= 0)
+                    {
+                        stationIndex = Array.FindIndex(Stations, st => st.ready);
+                        linesSkipped = true;
+                        Show(Screen.ConfirmRoute);
+                        return;
                     }
                     break;
                 case IncomingLink.Outcome.Offline: linkMessage = T("linkOffline"); break;
@@ -278,15 +285,13 @@ namespace EkiNavi.Route
             else Show(Screen.Stations);
         }
 
-        /// <summary>経路の駅を、出発・乗り換え・到着の順に並べる。案内できる駅（今は新宿）だけ押せる。</summary>
-        void SetRouteStops(MapsRouteLink.Result result)
+        /// <summary>確認の画面でやり直すとき。読んだ経路を消して駅を選ぶ画面に戻す。</summary>
+        void CancelRoute()
         {
-            routeStops.Clear();
-            string Ready(string name) => MapsRouteLink.StationKey(name) == MapsRouteLink.Shinjuku ? MapsRouteLink.Shinjuku : null;
-            if (!string.IsNullOrEmpty(result.OriginName)) routeStops.Add((result.OriginName, "roleFrom", Ready(result.OriginName)));
-            bool endsAtShinjuku = Ready(result.OriginName) != null || Ready(result.DestinationName) != null;
-            if (result.StationId != null && !endsAtShinjuku) routeStops.Add((null, "roleTransfer", result.StationId));
-            if (!string.IsNullOrEmpty(result.DestinationName)) routeStops.Add((result.DestinationName, "roleTo", Ready(result.DestinationName)));
+            routeOriginName = routeDestinationName = "";
+            fromLineId = "jr";
+            linesSkipped = false;
+            Show(Screen.Stations);
         }
 
         /// <summary>「新大久保駅」「Hatsudai Station」→「新大久保」「Hatsudai」。</summary>
@@ -511,6 +516,7 @@ namespace EkiNavi.Route
 
             screens[Screen.Language] = BuildFirstRunLanguage();
             screens[Screen.Stations] = BuildStations();
+            screens[Screen.ConfirmRoute] = BuildConfirmRoute();
             screens[Screen.Line] = BuildLine();
             screens[Screen.Account] = BuildAccount();
             screens[Screen.Credits] = BuildCredits();
@@ -570,18 +576,6 @@ namespace EkiNavi.Route
             scroll.horizontal = false;
             scroll.movementType = ScrollRect.MovementType.Clamped;
 
-            // Google マップの経路の駅（リンクを読んだときだけ出す）
-            var routeTitle = RegionTitle(content.transform, "", "");
-            var routeTitleLabel = routeTitle.GetComponentInChildren<Text>();
-            var routeGrid = StationGrid(content.transform);
-            for (int i = 0; i < 3; i++) RouteTile(routeGrid.transform, i);
-            refreshers.Add(() =>
-            {
-                routeTitleLabel.text = T("routeStops");
-                routeTitle.SetActive(routeStops.Count > 0);
-                routeGrid.SetActive(routeStops.Count > 0);
-            });
-
             int stationNumber = 0;
             foreach (var region in Regions)
             {
@@ -626,65 +620,6 @@ namespace EkiNavi.Route
             grid.cellSize = new Vector2(200, 200 + StationLabelHeight);
             stationGrids.Add(grid);
             return gridGo;
-        }
-
-        /// <summary>経路の駅の index 番目。案内できる駅は青、まだの駅は「準備中」。乗り換えの駅は「JR → 小田急線」と出す。</summary>
-        void RouteTile(Transform parent, int index)
-        {
-            var go = new GameObject("RouteStop", typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = new Color(0, 0, 0, 0);
-            var button = go.GetComponent<Button>();
-            button.transition = Selectable.Transition.None;
-            button.onClick.AddListener(() =>
-            {
-                if (index >= routeStops.Count || routeStops[index].stationId == null) return;
-                stationIndex = Array.FindIndex(Stations, st => st.ready);
-                // 乗り換える路線が経路から分かっていれば、路線を選ぶ画面は飛ばして、すぐ読み取りへ
-                linesSkipped = routeStops[index].role == "roleTransfer" && routeLineId != null;
-                if (!linesSkipped) fromLineId = "jr";
-                Show(linesSkipped ? Screen.Scan : Screen.Line);
-            });
-
-            var photo = Panel(go.transform, "Photo", Blue, rounded);
-            Anchor(photo, Vector2.zero, Vector2.one, new Vector2(0, StationLabelHeight), Vector2.zero);
-            var photoImage = photo.GetComponent<Image>();
-            // 案内できる駅は、駅を選ぶ画面と同じ写真を出す
-            GameObject pictureGo = null;
-            var picture = LoadIcon("station_shinjuku");
-            if (picture != null)
-            {
-                photo.AddComponent<Mask>().showMaskGraphic = true;
-                pictureGo = Panel(photo.transform, "Picture", Color.white, picture);
-                pictureGo.GetComponent<Image>().type = Image.Type.Simple;
-                Stretch(pictureGo);
-            }
-            var glyph = Label(photo.transform, "", 96, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
-            Stretch(glyph.gameObject);
-            var name = Label(go.transform, "", 36, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            Anchor(name.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 50), new Vector2(-6, StationLabelHeight - 4));
-            var role = Label(go.transform, "", 26, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            Anchor(role.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 50));
-            refreshers.Add(() =>
-            {
-                bool show = index < routeStops.Count;
-                go.SetActive(show);
-                if (!show) return;
-                var stop = routeStops[index];
-                bool ready = stop.stationId != null;
-                var shinjuku = Stations.First(st => st.ready);
-                // 案内できる駅は、こちらの表の名前で出す。ほかはリンクの名前のまま
-                string local = ready ? LocalName(shinjuku.ja, shinjuku.en) : StopName(stop.name);
-                button.interactable = ready;
-                photoImage.color = ready ? Blue : Paper;
-                if (pictureGo != null) pictureGo.SetActive(ready);
-                glyph.fontSize = ready ? 96 : 32;
-                glyph.color = ready ? Color.white : Ink;
-                glyph.text = ready ? (pictureGo != null ? "" : local.Substring(0, 1)) : T("soon");
-                name.text = local;
-                role.text = stop.role == "roleTransfer" && routeLineId != null
-                    ? $"{FromName} → {LineName(destinationIndex)}" : T(stop.role);
-            });
         }
 
         GameObject RegionTitle(Transform parent, string ja, string en)
@@ -772,6 +707,72 @@ namespace EkiNavi.Route
                 var size = new Vector2(cell, cell + StationLabelHeight);
                 if (grid.cellSize != size) grid.cellSize = size;
             }
+        }
+
+        /// <summary>Google マップの経路を、どの駅でどの路線に乗り換えると読んだかを見せて、確かめてもらう画面。</summary>
+        GameObject BuildConfirmRoute()
+        {
+            var page = Panel(root, "ConfirmRoute", Color.white, null);
+            Stretch(page);
+            PageHeader(page.transform, () => T("confirmTitle"), CancelRoute);
+
+            var body = new GameObject("Body", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            body.transform.SetParent(page.transform, false);
+            Anchor(body, Vector2.zero, Vector2.one, new Vector2(56, 420), new Vector2(-56, -HeaderHeight - 60));
+            var layout = body.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = 26;
+            layout.childControlHeight = false;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+
+            // 駅を選ぶ画面と同じ写真を、同じ丸い角で出す
+            var picture = LoadIcon("station_" + Stations.First(st => st.ready).en.ToLowerInvariant());
+            if (picture != null)
+            {
+                var holder = new GameObject("PhotoRow", typeof(RectTransform));
+                holder.transform.SetParent(body.transform, false);
+                ((RectTransform)holder.transform).sizeDelta = new Vector2(0, 420);
+                var photo = Panel(holder.transform, "Photo", Blue, rounded);
+                var center = new Vector2(0.5f, 0.5f);
+                Anchor(photo, center, center, new Vector2(-210, -210), new Vector2(210, 210));
+                photo.AddComponent<Mask>().showMaskGraphic = true;
+                var image = Panel(photo.transform, "Picture", Color.white, picture);
+                image.GetComponent<Image>().type = Image.Type.Simple;
+                Stretch(image);
+            }
+
+            Text AddLine(int size, Color color, float height)
+            {
+                var label = Label(body.transform, "", size, color, FontStyle.Bold, TextAnchor.MiddleLeft);
+                label.rectTransform.sizeDelta = new Vector2(0, height);
+                return label;
+            }
+            var station = AddLine(80, Ink, 120);
+            var transfer = AddLine(46, Blue, 80);
+            var ends = AddLine(34, Ink, 60);
+            var recognized = AddLine(42, Ink, 160);
+            var ask = AddLine(46, Ink, 90);
+
+            var ok = PrimaryButton(page.transform, () => Show(Screen.Scan));
+            Anchor(ok.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 80), new Vector2(-56, 230));
+            var cancel = OutlineButton(page.transform, CancelRoute);
+            Anchor(cancel.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(56, 260), new Vector2(-56, 390));
+
+            refreshers.Add(() =>
+            {
+                ok.GetComponentInChildren<Text>().text = T("confirmOk");
+                cancel.GetComponentInChildren<Text>().text = T("confirmCancel");
+                ask.text = T("confirmAsk");
+                ends.text = string.IsNullOrEmpty(routeOriginName)
+                    ? StopName(routeDestinationName)
+                    : $"{StopName(routeOriginName)} → {StopName(routeDestinationName)}";
+                if (stationIndex < 0) return;
+                string stationName = LocalName(Stations[stationIndex].ja, Stations[stationIndex].en);
+                station.text = string.Format(T("stationTitle"), stationName);
+                transfer.text = $"{FromName} → {LineName(destinationIndex)}";
+                recognized.text = string.Format(T("confirmRecognized"), stationName, LineName(destinationIndex));
+            });
+            return page;
         }
 
         GameObject BuildLine()
