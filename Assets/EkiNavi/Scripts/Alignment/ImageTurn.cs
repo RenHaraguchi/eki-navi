@@ -30,7 +30,9 @@ namespace EkiNavi.Alignment
             // カメラから見た世界の上。カメラの座標は x = 画面の右、y = 画面の上
             var up = Quaternion.Inverse(cameraRotation) * Vector3.up;
             float x = up.x, y = up.y;
-            if (x * x + y * y < 1e-4f) return ImageTurn.None; // 真上か真下を見ていて決められない
+            // 真上か真下に近い向きでは、少しの傾きで横向きと取り違えるので、縦とみなす
+            var forward = cameraRotation * Vector3.forward;
+            if (Mathf.Abs(forward.y) > 0.95f || x * x + y * y < 1e-4f) return ImageTurn.None;
             if (Mathf.Abs(y) >= Mathf.Abs(x)) return y >= 0f ? ImageTurn.None : ImageTurn.Half;
             // 世界の上が画面の右に見える → 画像を反時計回りに回すと上が上に来る
             return x > 0f ? ImageTurn.CounterClockwise : ImageTurn.Clockwise;

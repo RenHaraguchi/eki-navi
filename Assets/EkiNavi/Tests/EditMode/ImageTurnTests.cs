@@ -134,6 +134,38 @@ namespace EkiNavi.Alignment.Tests
             Assert.That(Vector3.Distance(position, center), Is.LessThan(0.05f));
         }
 
+        [Test]
+        public void ABoxAnsweredOnTheTurnedImageGivesTheSignPosition()
+        {
+            // アプリと同じ流れ: Gemini は回した画像で外枠を答え、枠の中央の上端と下端を元の画像に戻して使う
+            var center = new Vector3(0f, 2.5f, 4f);
+            var cameraPosition = new Vector3(0f, 1.4f, 0f);
+            foreach (float roll in new[] { 90f, -90f })
+            {
+                var rotation = Quaternion.LookRotation(center - cameraPosition) * Quaternion.Euler(0f, 0f, roll);
+                var view = new CaptureView(cameraPosition, rotation, Projection);
+                var turn = ImageTurns.Choose(rotation);
+                // 回した画像の上の外枠（看板の縦 0.4m、横 1.2m）
+                var corners = new[]
+                {
+                    ImageTurns.ToTurned(turn, ToImage(view, center + new Vector3(-0.6f, 0.2f, 0f))),
+                    ImageTurns.ToTurned(turn, ToImage(view, center + new Vector3(0.6f, 0.2f, 0f))),
+                    ImageTurns.ToTurned(turn, ToImage(view, center + new Vector3(0.6f, -0.2f, 0f))),
+                    ImageTurns.ToTurned(turn, ToImage(view, center + new Vector3(-0.6f, -0.2f, 0f))),
+                };
+                float xMin = Mathf.Min(corners[0].x, corners[3].x), xMax = Mathf.Max(corners[1].x, corners[2].x);
+                float yMin = Mathf.Min(corners[0].y, corners[1].y), yMax = Mathf.Max(corners[2].y, corners[3].y);
+                Assert.That(xMax - xMin, Is.GreaterThan(yMax - yMin), $"roll {roll}: 回した画像では看板が横長に見える");
+                float cx = (xMin + xMax) * 0.5f;
+                var top = ImageTurns.ToOriginal(turn, new Vector2(cx, yMin));
+                var bottom = ImageTurns.ToOriginal(turn, new Vector2(cx, yMax));
+
+                Assert.That(SignVisionGeometry.TryLocateFromVerticalLine(view, top, bottom, 0.4f,
+                    out var position, out _), Is.True, $"roll {roll}");
+                Assert.That(Vector3.Distance(position, center), Is.LessThan(0.1f), $"roll {roll}");
+            }
+        }
+
         static Vector2 ToImage(CaptureView view, Vector3 world)
         {
             var local = Quaternion.Inverse(view.Rotation) * (world - view.Position);
