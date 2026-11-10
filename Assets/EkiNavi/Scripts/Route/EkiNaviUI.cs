@@ -150,7 +150,9 @@ namespace EkiNavi.Route
             ["terms"] = ("利用規約", "Terms of use"),
             ["licenses"] = ("オープンソースライセンス", "Open source licenses"),
             ["contact"] = ("お問い合わせ", "Contact"),
-            ["photoCredit"] = ("写真の出典", "Photo credits"),
+            ["photoCredit"] = ("写真と地図の出典", "Photo and map credits"),
+            ["mapCreditTitle"] = ("地図データ", "Map data"),
+            ["mapCreditBy"] = ("国土交通省「新宿駅周辺屋内地図データ」を加工して作成", "Processed from Shinjuku indoor map data (MLIT, Japan)"),
             ["cropped"] = ("正方形に切り抜き", "cropped to a square"),
             ["version"] = ("バージョン", "Version"),
             ["backToGuide"] = ("← 案内に戻る", "← Back to navigate"),
@@ -876,6 +878,8 @@ namespace EkiNavi.Route
             ("京都", "Kyoto", "Corpse Reviver", "CC BY 3.0", "https://commons.wikimedia.org/wiki/File:Kyoto_Station_J09.jpg"),
         };
 
+        const string MapDataUrl = "https://www.geospatial.jp/ckan/dataset/mlit-indoor-shinjuku-r2";
+
         void MenuRow(Transform parent, string key, Action onClick)
         {
             var row = Button(parent, Paper, rounded, onClick);
@@ -900,12 +904,19 @@ namespace EkiNavi.Route
             layout.childControlHeight = false;
             layout.childControlWidth = true;
             layout.childForceExpandHeight = false;
-            foreach (var credit in PhotoCredits) CreditRow(body.transform, credit.ja, credit.en, credit.author, credit.license, credit.url);
+            foreach (var credit in PhotoCredits)
+            {
+                var c = credit;
+                CreditRow(body.transform, () => string.Format(T("stationTitle"), LocalName(c.ja, c.en)),
+                    () => $"{c.author} / {c.license} / {T("cropped")}", c.url);
+            }
+            // 経路に使う国土交通省の地図データは、出典の表示が利用の条件
+            CreditRow(body.transform, () => T("mapCreditTitle"), () => T("mapCreditBy"), MapDataUrl);
             return page;
         }
 
-        // 押すと写真の元のページを開く
-        void CreditRow(Transform parent, string ja, string en, string author, string license, string url)
+        // 押すと元のページを開く
+        void CreditRow(Transform parent, Func<string> titleText, Func<string> byText, string url)
         {
             var row = Button(parent, Paper, rounded, () => Application.OpenURL(url));
             ((RectTransform)row.transform).sizeDelta = new Vector2(0, 128);
@@ -915,8 +926,8 @@ namespace EkiNavi.Route
             Anchor(by.gameObject, Vector2.zero, new Vector2(1, 0.5f), new Vector2(40, 0), new Vector2(-40, -6));
             refreshers.Add(() =>
             {
-                title.text = string.Format(T("stationTitle"), LocalName(ja, en));
-                by.text = $"{author} / {license} / {T("cropped")}";
+                title.text = titleText();
+                by.text = byText();
             });
         }
 
