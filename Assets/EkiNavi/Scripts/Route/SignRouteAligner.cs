@@ -78,6 +78,12 @@ namespace EkiNavi.Route
         /// <summary>案内板の一覧。SignVisionAligner が候補を選ぶのに使う。</summary>
         public SignCatalog Catalog => catalog;
 
+        /// <summary>サーバーの案内板の一覧に置き換える。同梱の一覧は、サーバーから取れないときの予備として残す。</summary>
+        public void ReplaceCatalog(SignCatalog serverCatalog)
+        {
+            if (serverCatalog != null) catalog = serverCatalog;
+        }
+
         /// <summary>経路が案内板に合わせて置かれているか。</summary>
         public bool IsAligned => state == State.Aligned;
 

@@ -130,3 +130,9 @@ gcloud run services logs read eki-navi --region asia-northeast1 --limit 50
 ```
 gcloud run services delete eki-navi --region asia-northeast1
 ```
+
+## 案内板のデータの置き場所
+
+地下1階の案内板のデータは、サーバーの経路パック（`server/station_data/pack.json`）にだけ置き、リポジトリにはコミットしません。アプリは起動時に `GET /v1/station` で案内板の一覧を読みます。読めないときだけ、同梱の `Assets/EkiNavi/Data/signs.json`（少ない枚数）を使います。
+
+リポジトリのままサーバーを出し直すと、案内板が同梱の枚数に戻ります。出し直すときは、手元の `pack.json` と `signs.json` を `server/station_data/` に置いてから `gcloud run deploy` してください（コミットはしません）。
