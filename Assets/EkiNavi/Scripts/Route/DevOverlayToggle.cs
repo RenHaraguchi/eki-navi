@@ -5,6 +5,7 @@ namespace EkiNavi.Route
 {
     /// <summary>
     /// 画面の左上を素早く 3 回たたくと、開発用の表示を出し入れする（エディターでは D キーでも）。
+    /// エディターと Development Build だけで動く。通常のビルドでは出さない。
     /// 2 本指のタップ（SignRouteAligner の合わせ直し）とぶつからないよう、1 本指の連打にしている。
     /// </summary>
     public class DevOverlayToggle : MonoBehaviour
@@ -17,10 +18,18 @@ namespace EkiNavi.Route
         int taps;
         float firstTapTime;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         void Awake() => DevOverlay.Visible = visibleOnStart;
+#else
+        void Awake() => DevOverlay.Visible = false;
+#endif
 
         void Update()
         {
+#if !(UNITY_EDITOR || DEVELOPMENT_BUILD)
+            // 通常のビルド（デモで配る APK）では、開発用の表示を出さない
+            return;
+#else
             var kb = Keyboard.current;
             if (kb != null && kb.dKey.wasPressedThisFrame) Toggle();
 
@@ -41,6 +50,7 @@ namespace EkiNavi.Route
                 taps = 0;
                 Toggle();
             }
+#endif
         }
 
         static void Toggle()

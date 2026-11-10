@@ -171,10 +171,15 @@ namespace EkiNavi.Route
 
         static bool RealignRequested()
         {
+#if !(UNITY_EDITOR || DEVELOPMENT_BUILD)
+            // 通常のビルドでは、指が 2 本触れただけで位置合わせを外さない（合わせ直しは「読み取り直す」で行う）
+            return false;
+#else
             var ts = Touchscreen.current;
             if (ts != null && ts.touches.Count > 1 && ts.touches[1].press.wasPressedThisFrame) return true;
             var kb = Keyboard.current;
             return kb != null && kb.rKey.wasPressedThisFrame;
+#endif
         }
 
         // ---- 板の選択 ----
