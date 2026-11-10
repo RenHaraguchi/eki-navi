@@ -106,6 +106,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   display: block;
   width: 100%;
   height: auto;
+  /* 縦に長い経路でも画面からはみ出さないようにする（図は枠の中で縮む） */
+  max-height: min(70vh, 640px);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 6px;
