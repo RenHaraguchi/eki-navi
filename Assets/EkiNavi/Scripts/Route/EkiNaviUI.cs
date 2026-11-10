@@ -27,7 +27,7 @@ namespace EkiNavi.Route
     /// </summary>
     public partial class EkiNaviUI : MonoBehaviour
     {
-        enum Screen { Language, Stations, ConfirmRoute, Line, Account, Credits, Scan, Guide, Arrived }
+        enum Screen { Language, Stations, ConfirmRoute, Line, Account, Credits, Licenses, LicenseText, Scan, Guide, Arrived }
 
         // チームのカラーパレット（白、ライトグレー、グレー、チャコール、青）
         // Success と Warning はパレットにない、到着と経路外れの専用の色
@@ -520,6 +520,8 @@ namespace EkiNavi.Route
             screens[Screen.Line] = BuildLine();
             screens[Screen.Account] = BuildAccount();
             screens[Screen.Credits] = BuildCredits();
+            screens[Screen.Licenses] = BuildLicenses();
+            screens[Screen.LicenseText] = BuildLicenseText();
             screens[Screen.Scan] = BuildScan();
             screens[Screen.Guide] = BuildGuide();
             screens[Screen.Arrived] = BuildArrived();
@@ -855,8 +857,9 @@ namespace EkiNavi.Route
             }
 
             SectionTitle(body.transform, "aboutSection");
-            foreach (var key in new[] { "privacy", "terms", "licenses", "contact" })
+            foreach (var key in new[] { "privacy", "terms", "contact" })
                 InfoRow(body.transform, key, () => T("soon"));
+            MenuRow(body.transform, "licenses", () => Show(Screen.Licenses));
             InfoRow(body.transform, "version", () => Application.version);
             MenuRow(body.transform, "photoCredit", () => Show(Screen.Credits));
             return page;
@@ -1273,7 +1276,7 @@ namespace EkiNavi.Route
             return button;
         }
 
-        // 旗とチェックは Material Icons（Apache 2.0、Assets/EkiNavi/Icons/material-icons-LICENSE.txt）
+        // 旗とチェックは Material Icons（Apache 2.0、Assets/EkiNavi/Resources/EkiNavi/material-icons-LICENSE.txt。全文はライセンスの画面で出す）
         static Sprite LoadIcon(string name)
         {
             var texture = Resources.Load<Texture2D>("EkiNavi/" + name);
@@ -1285,7 +1288,7 @@ namespace EkiNavi.Route
             return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
-        // チェックは Material Icons の check（Apache 2.0、Assets/EkiNavi/Icons/material-icons-LICENSE.txt）
+        // チェックは Material Icons の check（Apache 2.0、Assets/EkiNavi/Resources/EkiNavi/material-icons-LICENSE.txt）
         void Check(Transform badge)
         {
             var sprite = LoadIcon("icon_check");
