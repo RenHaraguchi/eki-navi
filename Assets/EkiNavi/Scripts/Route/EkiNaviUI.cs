@@ -23,15 +23,14 @@ namespace EkiNavi.Route
     /// </summary>
     public partial class EkiNaviUI : MonoBehaviour
     {
-        enum Screen { Stations, Line, Account, Scan, Guide, Arrived }
+        enum Screen { Stations, Line, Account, Credits, Scan, Guide, Arrived }
 
-        // アイコン（#15）に合わせた色
-        static readonly Color Navy = Hex("#0017C1");
-        static readonly Color Blue = Hex("#3460FB");
-        static readonly Color Ink = Hex("#1A1F36");
-        static readonly Color SubInk = Hex("#5B6178");
-        static readonly Color Line = Hex("#D9DEEA");
-        static readonly Color Paper = Hex("#F4F6FB");
+        // チームのカラーパレット（白、ライトグレー、グレー、チャコール、青）
+        // Success と Warning はパレットにない、到着と経路外れの専用の色
+        static readonly Color Blue = Hex("#2F80ED");
+        static readonly Color Ink = Hex("#1E1E1E");
+        static readonly Color Line = Hex("#8C8C8C");
+        static readonly Color Paper = Hex("#F2F2F2");
         static readonly Color Success = Hex("#1F9D55");
         static readonly Color Warning = Hex("#E8590C");
 
@@ -58,9 +57,13 @@ namespace EkiNavi.Route
         GameObject scanStatusPill, toast, guideCard, guideBar, guideOverlay;
         Text overlayTitle, overlaySub;
         Image guideCardImage;
-        RectTransform progressFill;
+        RectTransform progressFill, progressKnob;
         Button scanButton;
         float toastUntil;
+        RectTransform toastRect;
+        Vector2 toastHome;
+        float toastLift = ToastHiddenLift;  // いつもの位置から上へずらした量
+        bool toastDragging;
         string alignedSignName = "";
         bool directionWarning;
         bool hasGuide;  // 一度でも位置が合って案内を始めたか（読み取りの画面から案内へ戻れる）
@@ -83,6 +86,9 @@ namespace EkiNavi.Route
         const string LanguageKey = "ekinavi.language";
         const float StationLabelHeight = 104f;
         const float HeaderHeight = 220f;
+        const float ToastSeconds = 10f;
+        const float ToastHiddenLift = 150f;  // ここまで上げると案内のカードの裏に隠れる
+        const float ToastDismissLift = 50f;  // 上へこれ以上スワイプしたら消す
 
         static readonly string[] Languages = { "ja", "en", "zh", "ko" };
         static readonly string[] LanguageLabels = { "日本語", "English", "中文", "한국어" };
@@ -119,8 +125,8 @@ namespace EkiNavi.Route
             ["destination"] = ("乗り換える路線", "Line to transfer to"),
             ["soon"] = ("準備中", "Coming soon"),
             ["start"] = ("案内を始める", "Start"),
-            ["scanStep"] = ("現在地を確かめます", "Find where you are"),
-            ["scanHint"] = ("近くの案内板にカメラを向けて\n「読み取る」を押してください", "Point the camera at a nearby sign\nand tap Scan"),
+            ["scanSub"] = ("カメラを向けて「読み取る」を押してください", "Then tap Scan"),
+            ["scanTitle"] = ("近くの案内板を映してください", "Point at a nearby sign"),
             ["scan"] = ("読み取る", "Scan"),
             ["scanning"] = ("読み取り中…", "Scanning..."),
             ["back"] = ("← 路線を選ぶ", "← Select line"),
@@ -135,6 +141,8 @@ namespace EkiNavi.Route
             ["terms"] = ("利用規約", "Terms of use"),
             ["licenses"] = ("オープンソースライセンス", "Open source licenses"),
             ["contact"] = ("お問い合わせ", "Contact"),
+            ["photoCredit"] = ("写真の出典", "Photo credits"),
+            ["cropped"] = ("正方形に切り抜き", "cropped to a square"),
             ["version"] = ("バージョン", "Version"),
             ["backToGuide"] = ("← 案内に戻る", "← Back to guide"),
             ["scanHold"] = ("そのまま動かさないでください", "Hold still..."),
@@ -151,17 +159,19 @@ namespace EkiNavi.Route
             ["right"] = ("右", "right"),
             ["faceArrow"] = ("矢印の方向を\n向いてください", "Turn to face the arrow"),
             ["straight"] = ("このまま まっすぐ", "Go straight"),
-            ["toGoal"] = ("{0}まで あと {1} m", "{1} m to {0}"),
+            ["routeStart"] = ("スタート", "Start"),
+            ["routeGoal"] = ("ゴール", "Goal"),
             ["offRoute"] = ("経路から外れています", "You are off the route"),
             ["upright"] = ("スマホを縦に\n戻してください", "Hold your phone upright"),
             ["uprightSub"] = ("縦に戻すと矢印が出ます", "The arrow appears when the phone is upright"),
             ["offRouteSub"] = ("矢印の向きに戻ってください（{0} m）", "Follow the arrow back ({0} m)"),
             ["platform"] = ("のりば", ""),
+            ["platformDistance"] = ("のりばまで {0} m", "{0} m"),
             ["rescan"] = ("読み取り直す", "Rescan"),
             ["lost"] = ("位置を見失いました", "Lost your position"),
             ["lostSub"] = ("案内板を読み取り直してください", "Scan a sign again"),
             ["arrived"] = ("{0}に\n着きました", "You have arrived at\n{0}"),
-            ["arrivedSub"] = ("おつかれさまでした", "Have a nice trip"),
+            ["arrivedSub"] = ("良い旅を", "Have a nice trip!"),
             ["restart"] = ("最初に戻る", "Back to start"),
         };
 
@@ -201,7 +211,8 @@ namespace EkiNavi.Route
             if (arrow != null) arrow.ResetArrival();
             hasGuide = true;
             directionWarning = vision != null && vision.DirectionUncertain;
-            toastUntil = Time.unscaledTime + 3f;
+            toastUntil = Time.unscaledTime + ToastSeconds;
+            toastLift = ToastHiddenLift;
             Show(Screen.Guide);
         }
 
@@ -264,7 +275,7 @@ namespace EkiNavi.Route
             guideOverlay.SetActive(overlay);
             guideCard.SetActive(!overlay);
             guideBar.SetActive(!overlay);
-            toast.SetActive(!overlay && Time.unscaledTime < toastUntil);
+            UpdateToast(!overlay && Time.unscaledTime < toastUntil);
             if (overlay)
             {
                 overlayTitle.text = T(directionWarning ? "directionTitle" : "lost");
@@ -272,11 +283,15 @@ namespace EkiNavi.Route
                 return;
             }
 
-            guideDestination.text = T("platform");
+            // 残りの距離は下の帯に出す（位置が確かなときだけ）
+            guideDestination.text = guide.Guiding
+                ? string.Format(T("platformDistance"), Mathf.RoundToInt(guide.RemainingMeters))
+                : T("platform");
+            guideSub.gameObject.SetActive(true);
 
             if (guide.WaitingForPortrait)
             {
-                guideCardImage.color = Navy;
+                guideCardImage.color = Blue;
                 guideIcon.text = "↻";
                 guideMain.text = T("upright");
                 guideSub.text = T("uprightSub");
@@ -292,8 +307,10 @@ namespace EkiNavi.Route
             }
             // 進み具合は、案内できている間だけ更新する（見失っている間は直前のまま）
             float total = Mathf.Max(1f, guide.TotalMeters);
-            progressFill.anchorMax = new Vector2(Mathf.Clamp01(1f - guide.RemainingMeters / total), 1f);
-            guideCardImage.color = Navy;
+            float progress = Mathf.Clamp01(1f - guide.RemainingMeters / total);
+            progressFill.anchorMax = new Vector2(progress, 1f);
+            progressKnob.anchorMin = progressKnob.anchorMax = new Vector2(progress, 0.5f);
+            guideCardImage.color = Blue;
             if (guide.FacingAway)
             {
                 guideIcon.text = "!";
@@ -309,7 +326,43 @@ namespace EkiNavi.Route
                 guideIcon.text = "↑";
                 guideMain.text = T("straight");
             }
-            guideSub.text = string.Format(T("toGoal"), Goal, Mathf.RoundToInt(guide.RemainingMeters));
+            guideSub.gameObject.SetActive(false);  // 大きい文字だけをカードの中央に置く
+        }
+
+        // 案内のカードの裏から下りてきて、時間が来たら戻る。指で動かしている間は指に合わせる
+        void UpdateToast(bool wanted)
+        {
+            if (!toastDragging)
+            {
+                float target = wanted ? 0f : ToastHiddenLift;
+                toastLift = Mathf.Lerp(toastLift, target, 1f - Mathf.Exp(-14f * Time.unscaledDeltaTime));
+                if (Mathf.Abs(toastLift - target) < 0.5f) toastLift = target;
+            }
+            toast.SetActive(wanted || toastDragging || toastLift < ToastHiddenLift);
+            toastRect.anchoredPosition = toastHome + Vector2.up * toastLift;
+        }
+
+        void AddToastSwipe()
+        {
+            toast.GetComponent<Image>().raycastTarget = true;
+            var trigger = toast.AddComponent<EventTrigger>();
+            void On(EventTriggerType type, Action<PointerEventData> action)
+            {
+                var entry = new EventTrigger.Entry { eventID = type };
+                entry.callback.AddListener(data => action((PointerEventData)data));
+                trigger.triggers.Add(entry);
+            }
+            On(EventTriggerType.BeginDrag, _ => toastDragging = true);
+            On(EventTriggerType.Drag, data =>
+            {
+                float scale = root.GetComponent<Canvas>().scaleFactor;
+                toastLift = Mathf.Clamp(toastLift + data.delta.y / scale, 0f, ToastHiddenLift);
+            });
+            On(EventTriggerType.EndDrag, _ =>
+            {
+                toastDragging = false;
+                if (toastLift > ToastDismissLift) toastUntil = 0f;
+            });
         }
 
         GuideInfo ReadArrow() => new GuideInfo
@@ -355,6 +408,7 @@ namespace EkiNavi.Route
             screens[Screen.Stations] = BuildStations();
             screens[Screen.Line] = BuildLine();
             screens[Screen.Account] = BuildAccount();
+            screens[Screen.Credits] = BuildCredits();
             screens[Screen.Scan] = BuildScan();
             screens[Screen.Guide] = BuildGuide();
             screens[Screen.Arrived] = BuildArrived();
@@ -363,7 +417,7 @@ namespace EkiNavi.Route
         // 画面の上の帯。onBack があれば左に戻るボタンを出す
         void PageHeader(Transform page, Func<string> title, Action onBack)
         {
-            var header = Panel(page, "Header", Navy, null);
+            var header = Panel(page, "Header", Blue, null);
             Anchor(header, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -HeaderHeight), Vector2.zero);
             var label = Label(header.transform, "", 56, Color.white, FontStyle.Bold, TextAnchor.LowerLeft);
             Anchor(label.gameObject, Vector2.zero, Vector2.one, new Vector2(onBack == null ? 56 : 140, 44), new Vector2(-56, -80));
@@ -449,7 +503,7 @@ namespace EkiNavi.Route
             go.GetComponent<LayoutElement>().preferredHeight = 90;
             var left = Label(go.transform, ja, 46, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Stretch(left.gameObject);
-            var right = Label(go.transform, en, 32, SubInk, FontStyle.Normal, TextAnchor.MiddleRight);
+            var right = Label(go.transform, en, 32, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
             Stretch(right.gameObject);
             var line = Panel(go.transform, "Line", Line, null);
             Anchor(line, Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 3));
@@ -471,23 +525,34 @@ namespace EkiNavi.Route
                 Show(Screen.Line);
             });
 
-            var photo = Panel(go.transform, "Photo", station.ready ? Blue : Hex("#C9CEDA"), rounded);
+            var photo = Panel(go.transform, "Photo", station.ready ? Blue : Paper, rounded);
             Anchor(photo, Vector2.zero, Vector2.one, new Vector2(0, StationLabelHeight), Vector2.zero);
-            if (station.ready)
+            var picture = LoadIcon("station_" + station.en.ToLowerInvariant());
+            if (picture != null)
+            {
+                // 写真の角をタイルの丸みに合わせて切り取る
+                photo.AddComponent<Mask>().showMaskGraphic = true;
+                var image = Panel(photo.transform, "Picture", Color.white, picture);
+                image.GetComponent<Image>().type = Image.Type.Simple;
+                Stretch(image);
+            }
+            if (!station.ready)
+            {
+                // 準備中の駅は、写真を暗くして文字を重ねる
+                if (picture != null) Stretch(Panel(photo.transform, "Dim", new Color(0, 0, 0, 0.5f), null));
+                var soon = Label(photo.transform, "", 32, picture != null ? Color.white : Ink, FontStyle.Bold, TextAnchor.MiddleCenter);
+                Stretch(soon.gameObject);
+                refreshers.Add(() => soon.text = T("soon"));
+            }
+            else if (picture == null)
             {
                 var initial = Label(photo.transform, station.ja.Substring(0, 1), 96, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
                 Stretch(initial.gameObject);
             }
-            else
-            {
-                var soon = Label(photo.transform, "", 32, SubInk, FontStyle.Bold, TextAnchor.MiddleCenter);
-                Stretch(soon.gameObject);
-                refreshers.Add(() => soon.text = T("soon"));
-            }
 
-            var ja = Label(go.transform, station.ja, 36, station.ready ? Ink : SubInk, FontStyle.Bold, TextAnchor.MiddleLeft);
+            var ja = Label(go.transform, station.ja, 36, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Anchor(ja.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 50), new Vector2(-6, StationLabelHeight - 4));
-            var en = Label(go.transform, station.en, 28, station.ready ? Ink : SubInk, FontStyle.Normal, TextAnchor.MiddleLeft);
+            var en = Label(go.transform, station.en, 28, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Anchor(en.gameObject, Vector2.zero, new Vector2(1, 0), new Vector2(6, 8), new Vector2(-6, 50));
         }
 
@@ -507,7 +572,7 @@ namespace EkiNavi.Route
 
         GameObject BuildLine()
         {
-            var page = Panel(root, "Line", Paper, null);
+            var page = Panel(root, "Line", Color.white, null);
             Stretch(page);
             PageHeader(page.transform, () => stationIndex >= 0
                 ? string.Format(T("stationTitle"), language == "ja" ? Stations[stationIndex].ja : Stations[stationIndex].en)
@@ -540,7 +605,7 @@ namespace EkiNavi.Route
 
         GameObject BuildAccount()
         {
-            var page = Panel(root, "Account", Paper, null);
+            var page = Panel(root, "Account", Color.white, null);
             Stretch(page);
             PageHeader(page.transform, () => T("account"), () => Show(Screen.Stations));
 
@@ -575,18 +640,74 @@ namespace EkiNavi.Route
             foreach (var key in new[] { "privacy", "terms", "licenses", "contact" })
                 InfoRow(body.transform, key, () => T("soon"));
             InfoRow(body.transform, "version", () => Application.version);
+            MenuRow(body.transform, "photoCredit", () => Show(Screen.Credits));
             return page;
+        }
+
+        // 駅の写真の出典（Wikimedia Commons）。CC BY の写真は、撮影者、ライセンス、元のページの表示が条件
+        static readonly (string ja, string en, string author, string license, string url)[] PhotoCredits =
+        {
+            ("新宿", "Shinjuku", "Real Estate Japan", "CC BY 2.0", "https://commons.wikimedia.org/wiki/File:Shinjuku_Station_evening_2020-10-15.jpg"),
+            ("東京", "Tokyo", "Daderot", "CC0", "https://commons.wikimedia.org/wiki/File:Exterior_-_Tokyo_Station_Marunouchi_Building_-_DSC09896.JPG"),
+            ("池袋", "Ikebukuro", "Asanagi", "CC0", "https://commons.wikimedia.org/wiki/File:East_entrance_of_Ikebukuro_Station_2026-10-08.jpg"),
+            ("渋谷", "Shibuya", "Syced", "CC0", "https://commons.wikimedia.org/wiki/File:Shibuya_Scramble_Square_2.jpg"),
+            ("大阪", "Osaka", "MIKI Yoshihito", "CC BY 2.0", "https://commons.wikimedia.org/wiki/File:Osaka_Station_south_gate_building_2017-04-01.jpg"),
+            ("京都", "Kyoto", "Corpse Reviver", "CC BY 3.0", "https://commons.wikimedia.org/wiki/File:Kyoto_Station_J09.jpg"),
+        };
+
+        void MenuRow(Transform parent, string key, Action onClick)
+        {
+            var row = Button(parent, Paper, rounded, onClick);
+            ((RectTransform)row.transform).sizeDelta = new Vector2(0, 108);
+            var left = Label(row.transform, "", 38, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Anchor(left.gameObject, Vector2.zero, Vector2.one, new Vector2(40, 0), new Vector2(-100, 0));
+            refreshers.Add(() => left.text = T(key));
+            var more = Label(row.transform, "›", 48, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
+            Anchor(more.gameObject, new Vector2(1, 0), Vector2.one, new Vector2(-100, 0), new Vector2(-40, 0));
+        }
+
+        GameObject BuildCredits()
+        {
+            var page = Panel(root, "Credits", Color.white, null);
+            Stretch(page);
+            PageHeader(page.transform, () => T("photoCredit"), () => Show(Screen.Account));
+            var body = new GameObject("Body", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            body.transform.SetParent(page.transform, false);
+            Anchor(body, Vector2.zero, Vector2.one, new Vector2(56, 40), new Vector2(-56, -HeaderHeight - 40));
+            var layout = body.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = 14;
+            layout.childControlHeight = false;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            foreach (var credit in PhotoCredits) CreditRow(body.transform, credit.ja, credit.en, credit.author, credit.license, credit.url);
+            return page;
+        }
+
+        // 押すと写真の元のページを開く
+        void CreditRow(Transform parent, string ja, string en, string author, string license, string url)
+        {
+            var row = Button(parent, Paper, rounded, () => Application.OpenURL(url));
+            ((RectTransform)row.transform).sizeDelta = new Vector2(0, 128);
+            var title = Label(row.transform, "", 34, Ink, FontStyle.Bold, TextAnchor.LowerLeft);
+            Anchor(title.gameObject, new Vector2(0, 0.5f), Vector2.one, new Vector2(40, 4), new Vector2(-40, 0));
+            var by = Label(row.transform, "", 28, Ink, FontStyle.Bold, TextAnchor.UpperLeft);
+            Anchor(by.gameObject, Vector2.zero, new Vector2(1, 0.5f), new Vector2(40, 0), new Vector2(-40, -6));
+            refreshers.Add(() =>
+            {
+                title.text = language == "ja" ? ja + "駅" : en + " Station";
+                by.text = $"{author} / {license} / {T("cropped")}";
+            });
         }
 
         void InfoRow(Transform parent, string key, Func<string> value)
         {
-            var row = Panel(parent, "Row", Color.white, rounded);
+            var row = Panel(parent, "Row", Paper, rounded);
             ((RectTransform)row.transform).sizeDelta = new Vector2(0, 108);
             var left = Label(row.transform, "", 38, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
             Anchor(left.gameObject, Vector2.zero, Vector2.one, new Vector2(40, 0), new Vector2(-220, 0));
             refreshers.Add(() => left.text = T(key));
             if (value == null) return;
-            var right = Label(row.transform, "", 32, SubInk, FontStyle.Normal, TextAnchor.MiddleRight);
+            var right = Label(row.transform, "", 32, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
             Anchor(right.gameObject, new Vector2(1, 0), Vector2.one, new Vector2(-220, 0), new Vector2(-40, 0));
             refreshers.Add(() => right.text = value());
         }
@@ -637,12 +758,11 @@ namespace EkiNavi.Route
 
             // 上の案内のカード
             var card = Panel(page.transform, "Hint", new Color(1, 1, 1, 0.94f), rounded);
-            Anchor(card, new Vector2(0, 1), new Vector2(1, 1), new Vector2(40, -420), new Vector2(-40, -120));
-            var step = Label(card.transform, "", 32, Blue, FontStyle.Bold, TextAnchor.UpperLeft);
-            Anchor(step.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(48, 30), new Vector2(-48, -36));
-            var hint = Label(card.transform, "", 42, Ink, FontStyle.Bold, TextAnchor.LowerLeft);
-            Anchor(hint.gameObject, new Vector2(0, 0), new Vector2(1, 1), new Vector2(48, 40), new Vector2(-48, -90));
-            refreshers.Add(() => { step.text = T("scanStep"); hint.text = T("scanHint"); });
+            Anchor(card, new Vector2(0, 1), new Vector2(1, 1), new Vector2(40, -400), new Vector2(-40, -110));
+            var scanTexts = TextStack(card.transform, 56);
+            var title = Label(scanTexts, "", 54, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            var sub = Label(scanTexts, "", 34, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            refreshers.Add(() => { title.text = T("scanTitle"); sub.text = T("scanSub"); });
 
             var back = TextButton(page.transform, () => Show(Screen.Line));
             Anchor(back.gameObject, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -110), new Vector2(360, -20));
@@ -658,14 +778,8 @@ namespace EkiNavi.Route
                 backToGuide.GetComponentInChildren<Text>().text = T("backToGuide");
             });
 
-            // 案内板を入れる枠（四隅のかぎ）
-            var frame = new GameObject("Frame", typeof(RectTransform));
-            frame.transform.SetParent(page.transform, false);
-            Anchor(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-440, -170), new Vector2(440, 330));
-            foreach (var (ax, ay) in new[] { (0f, 0f), (1f, 0f), (0f, 1f), (1f, 1f) }) Corner(frame.transform, ax, ay);
-
             // 結果の知らせ
-            scanStatusPill = Panel(page.transform, "Status", new Color(0.1f, 0.12f, 0.2f, 0.82f), rounded);
+            scanStatusPill = Panel(page.transform, "Status", new Color(0.118f, 0.118f, 0.118f, 0.82f), rounded);
             Anchor(scanStatusPill, new Vector2(0, 0), new Vector2(1, 0), new Vector2(60, 400), new Vector2(-60, 520));
             scanStatus = Label(scanStatusPill.transform, "", 32, Color.white, FontStyle.Normal, TextAnchor.MiddleCenter);
             Stretch(scanStatus.gameObject, 24);
@@ -673,11 +787,27 @@ namespace EkiNavi.Route
             // 読み取るボタン（丸）
             var ring = Panel(page.transform, "Ring", Color.white, circle);
             Anchor(ring, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-130, 110), new Vector2(130, 370));
-            scanButton = Button(ring.transform, Navy, circle, () => { if (vision != null) vision.Scan(); else PreviewScan(); });
+            scanButton = Button(ring.transform, Blue, circle, () => { if (vision != null) vision.Scan(); else PreviewScan(); });
             Stretch(scanButton.gameObject, 14);
             var scanLabel = Label(scanButton.transform, "", 40, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(scanLabel.gameObject);
             return page;
+        }
+
+        /// <summary>カードの中で、大きい文字と小さい文字のかたまりを上下の中央に置く入れ物。</summary>
+        Transform TextStack(Transform card, float left)
+        {
+            var go = new GameObject("Texts", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            go.transform.SetParent(card, false);
+            Anchor(go, Vector2.zero, Vector2.one, new Vector2(left, 0), new Vector2(-40, 0));
+            var layout = go.GetComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.spacing = 30;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            return go.transform;
         }
 
         GameObject BuildGuide()
@@ -686,20 +816,24 @@ namespace EkiNavi.Route
             page.transform.SetParent(root, false);
             Stretch(page);
 
-            guideCard = Panel(page.transform, "Instruction", Navy, rounded);
+            guideCard = Panel(page.transform, "Instruction", Blue, rounded);
             guideCardImage = guideCard.GetComponent<Image>();
             Anchor(guideCard, new Vector2(0, 1), new Vector2(1, 1), new Vector2(40, -400), new Vector2(-40, -110));
             guideIcon = Label(guideCard.transform, "↑", 130, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Anchor(guideIcon.gameObject, new Vector2(0, 0), new Vector2(0, 1), new Vector2(20, 0), new Vector2(220, 0));
-            guideMain = Label(guideCard.transform, "", 54, Color.white, FontStyle.Bold, TextAnchor.LowerLeft);
-            Anchor(guideMain.gameObject, new Vector2(0, 0.42f), new Vector2(1, 1), new Vector2(230, 0), new Vector2(-40, -30));
-            guideSub = Label(guideCard.transform, "", 34, new Color(1, 1, 1, 0.85f), FontStyle.Normal, TextAnchor.UpperLeft);
-            Anchor(guideSub.gameObject, new Vector2(0, 0), new Vector2(1, 0.42f), new Vector2(230, 30), new Vector2(-40, -10));
+            var guideTexts = TextStack(guideCard.transform, 230);
+            guideMain = Label(guideTexts, "", 54, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            guideSub = Label(guideTexts, "", 34, Color.white, FontStyle.Normal, TextAnchor.MiddleLeft);
 
             toast = Panel(page.transform, "Located", Success, rounded);
             Anchor(toast, new Vector2(0, 1), new Vector2(1, 1), new Vector2(80, -560), new Vector2(-80, -430));
             toastText = Label(toast.transform, "", 34, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(toastText.gameObject, 20);
+            toastText.lineSpacing = 1.2f;
+            toast.transform.SetAsFirstSibling();  // 案内のカードの裏から出す
+            toastRect = (RectTransform)toast.transform;
+            toastHome = toastRect.anchoredPosition;
+            AddToastSwipe();
             refreshers.Add(() => toastText.text = T("located") + (string.IsNullOrEmpty(alignedSignName) ? "" : $"\n<size=28>{alignedSignName}</size>"));
 
             // 下の帯: 行き先、進み具合、読み取り直す
@@ -708,17 +842,42 @@ namespace EkiNavi.Route
             Anchor(bar, new Vector2(0, 0), new Vector2(1, 0), new Vector2(40, 60), new Vector2(-40, 300));
             // 案内先は今は小田急線に固定（路線の選択を経路につなぐときに切り替える）
             var destination = LineBadge(bar.transform, 0, 30, 58);
-            Anchor(destination, new Vector2(0, 0.5f), new Vector2(0.62f, 1), new Vector2(44, 0), new Vector2(0, -20));
-            guideDestination = Label(destination.transform, "", 34, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
-            var track = Panel(bar.transform, "Track", Line, barCorner);
-            Anchor(track, new Vector2(0, 0), new Vector2(1, 0), new Vector2(44, 50), new Vector2(-44, 74));
+            Anchor(destination, new Vector2(0, 0.5f), new Vector2(0.68f, 1), new Vector2(44, 0), new Vector2(0, -20));
+            guideDestination = Label(destination.transform, "", 30, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            // ゴールの路線だと分かるよう、記号の左に旗を出す（Material Icons の flag）
+            var flagSprite = LoadIcon("icon_flag");
+            if (flagSprite != null)
+            {
+                var flag = Panel(destination.transform, "GoalFlag", Hex("#D93025"), flagSprite);
+                var image = flag.GetComponent<Image>();
+                image.type = Image.Type.Simple;
+                image.preserveAspect = true;
+                var size = flag.AddComponent<LayoutElement>();
+                size.preferredWidth = 50;
+                size.preferredHeight = 58;
+                flag.transform.SetAsFirstSibling();
+            }
+            var track = Panel(bar.transform, "Track", Paper, barCorner);
+            Anchor(track, new Vector2(0, 0), new Vector2(1, 0), new Vector2(44, 72), new Vector2(-44, 96));
             var fill = Panel(track.transform, "Fill", Blue, barCorner);
             Stretch(fill);
             // 角の丸みを保つため、塗りの幅（右端の位置）で進み具合を出す
             progressFill = (RectTransform)fill.transform;
             progressFill.anchorMax = new Vector2(0f, 1f);
+
+            // 音楽アプリの再生バーのように、現在地にバーと同じ色の丸を出す
+            var knob = Panel(track.transform, "Knob", Blue, circle);
+            Anchor(knob, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(-24, -24), new Vector2(24, 24));
+            progressKnob = (RectTransform)knob.transform;
+
+            // バーの両端の文字
+            var startLabel = Label(bar.transform, "", 28, Ink, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Anchor(startLabel.gameObject, Vector2.zero, new Vector2(0.5f, 0), new Vector2(44, 14), new Vector2(0, 56));
+            var goalLabel = Label(bar.transform, "", 28, Ink, FontStyle.Bold, TextAnchor.MiddleRight);
+            Anchor(goalLabel.gameObject, new Vector2(0.5f, 0), new Vector2(1, 0), new Vector2(0, 14), new Vector2(-44, 56));
+            refreshers.Add(() => { startLabel.text = T("routeStart"); goalLabel.text = T("routeGoal"); });
             var rescan = OutlineButton(bar.transform, () => Show(Screen.Scan));
-            Anchor(rescan.gameObject, new Vector2(0.62f, 0.5f), new Vector2(1, 1), new Vector2(10, 4), new Vector2(-44, -24));
+            Anchor(rescan.gameObject, new Vector2(0.68f, 0.5f), new Vector2(1, 1), new Vector2(10, 4), new Vector2(-44, -24));
             refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
 
             guideOverlay = BuildGuideOverlay(page.transform);
@@ -733,8 +892,8 @@ namespace EkiNavi.Route
             Stretch(overlay);
             overlayTitle = Label(overlay.transform, "", 56, Color.white, FontStyle.Bold, TextAnchor.LowerCenter);
             Anchor(overlayTitle.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, 90), new Vector2(-50, 340));
-            overlaySub = Label(overlay.transform, "", 36, new Color(1, 1, 1, 0.9f), FontStyle.Normal, TextAnchor.UpperCenter);
-            Anchor(overlaySub.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, -30), new Vector2(-50, 60));
+            overlaySub = Label(overlay.transform, "", 36, Color.white, FontStyle.Normal, TextAnchor.UpperCenter);
+            Anchor(overlaySub.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(50, -50), new Vector2(-50, 40));
             var rescan = PrimaryButton(overlay.transform, () => Show(Screen.Scan));
             Anchor(rescan.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(110, -270), new Vector2(-110, -100));
             refreshers.Add(() => rescan.GetComponentInChildren<Text>().text = T("rescan"));
@@ -750,7 +909,7 @@ namespace EkiNavi.Route
             Check(badge.transform);
             var title = Label(page.transform, "", 64, Color.white, FontStyle.Bold, TextAnchor.UpperCenter);
             Anchor(title.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(60, -100), new Vector2(-60, 200));
-            var sub = Label(page.transform, "", 38, new Color(1, 1, 1, 0.85f), FontStyle.Normal, TextAnchor.UpperCenter);
+            var sub = Label(page.transform, "", 38, Color.white, FontStyle.Normal, TextAnchor.UpperCenter);
             Anchor(sub.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(60, -220), new Vector2(-60, -120));
             var restart = Button(page.transform, Color.white, rounded, () =>
             {
@@ -774,7 +933,7 @@ namespace EkiNavi.Route
 
         GameObject SectionTitle(Transform parent, string key)
         {
-            var label = Label(parent, "", 34, SubInk, FontStyle.Bold, TextAnchor.LowerLeft);
+            var label = Label(parent, "", 34, Ink, FontStyle.Bold, TextAnchor.LowerLeft);
             label.rectTransform.sizeDelta = new Vector2(0, 70);
             refreshers.Add(() => label.text = T(key));
             return label.gameObject;
@@ -813,16 +972,16 @@ namespace EkiNavi.Route
 
         static void Highlight(Button button, bool on)
         {
-            button.GetComponent<Image>().color = on ? Hex("#E8EDFF") : Color.white;
+            button.GetComponent<Image>().color = on ? Paper : Color.white;
             var outline = button.GetComponent<Outline>();
             if (outline != null) outline.effectColor = on ? Blue : Line;
             var label = button.GetComponentInChildren<Text>();
-            if (label != null) label.color = !button.interactable ? SubInk : on ? Navy : Ink;
+            if (label != null) label.color = on ? Blue : Ink;
         }
 
         Button PrimaryButton(Transform parent, Action onClick)
         {
-            var button = Button(parent, Navy, rounded, onClick);
+            var button = Button(parent, Blue, rounded, onClick);
             var label = Label(button.transform, "", 46, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             Stretch(label.gameObject);
             return button;
@@ -867,39 +1026,26 @@ namespace EkiNavi.Route
             return button;
         }
 
-        void Corner(Transform frame, float ax, float ay)
+        // 旗とチェックは Material Icons（Apache 2.0、Assets/EkiNavi/Icons/material-icons-LICENSE.txt）
+        static Sprite LoadIcon(string name)
         {
-            const float length = 90f, thickness = 12f;
-            var a = new Vector2(ax, ay);
-            var h = Panel(frame, "CornerH", Color.white, null);
-            var v = Panel(frame, "CornerV", Color.white, null);
-            float sx = ax == 0f ? 1f : -1f, sy = ay == 0f ? 1f : -1f;
-            Anchor(h, a, a, new Vector2(Mathf.Min(0, sx * length), Mathf.Min(0, sy * thickness)), new Vector2(Mathf.Max(0, sx * length), Mathf.Max(0, sy * thickness)));
-            Anchor(v, a, a, new Vector2(Mathf.Min(0, sx * thickness), Mathf.Min(0, sy * length)), new Vector2(Mathf.Max(0, sx * thickness), Mathf.Max(0, sy * length)));
-            // 白い物に重なっても見えるよう、影を付ける
-            foreach (var bar in new[] { h, v })
+            var texture = Resources.Load<Texture2D>("EkiNavi/" + name);
+            if (texture == null)
             {
-                var shadow = bar.AddComponent<Shadow>();
-                shadow.effectColor = new Color(0, 0, 0, 0.55f);
-                shadow.effectDistance = new Vector2(3, -3);
+                Debug.LogWarning($"[EkiNavi] アイコンがありません: {name}");
+                return null;
             }
+            return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
+        // チェックは Material Icons の check（Apache 2.0、Assets/EkiNavi/Icons/material-icons-LICENSE.txt）
         void Check(Transform badge)
         {
-            // 文字の ✓ は端末のフォントにないことがあるので、2 本の棒で描く
-            var shortBar = Panel(badge, "CheckShort", Success, rounded);
-            var rt = (RectTransform)shortBar.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(110, 34);
-            rt.anchoredPosition = new Vector2(-48, -10);
-            rt.localRotation = Quaternion.Euler(0, 0, -45);
-            var longBar = Panel(badge, "CheckLong", Success, rounded);
-            rt = (RectTransform)longBar.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(190, 34);
-            rt.anchoredPosition = new Vector2(26, 14);
-            rt.localRotation = Quaternion.Euler(0, 0, 50);
+            var sprite = LoadIcon("icon_check");
+            if (sprite == null) return;
+            var check = Panel(badge, "Check", Success, sprite);
+            check.GetComponent<Image>().type = Image.Type.Simple;
+            Stretch(check, 30);
         }
 
         GameObject Panel(Transform parent, string name, Color color, Sprite sprite)
