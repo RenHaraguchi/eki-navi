@@ -352,9 +352,11 @@ namespace EkiNavi.Route
             // 横向きと縦向きで同じ看板を撮ったときに比べられるよう、求めた看板の向きとカメラの向きを残す
             var camForward = view.Rotation * Vector3.forward;
             Debug.Log($"[EkiNavi] 看板の位置: {sign.id} {source}、距離 {distance:0.0} m、看板の表の向き {Azimuth.Of(normal):0} 度、カメラの向き {Azimuth.Of(new Vector2(camForward.x, camForward.z)):0} 度、画像の回転 {turn}");
-            // 遠いというだけでは「向きがずれているかもしれません」を出さない（四隅の当てはめで遠くでも向きを出せるため）。
-            // 距離と求め方はログと status に残る
-            DirectionUncertain = false;
+            // 向きが当てにならないのは、四隅の当てはめも壁の面も使えず、カメラの正面とみなしたときに遠い場合だけ。
+            // 斜めから撮ると、正面とみなした向きはその角度のぶんずれるので、近づいて読み直してもらう
+            DirectionUncertain = (source == "front" || source == "corners, front") && distance > 3.5f;
+            if (DirectionUncertain)
+                status += "  Direction may be off. Scan again within 3 m";
             Aligned?.Invoke(sign);
         }
 
