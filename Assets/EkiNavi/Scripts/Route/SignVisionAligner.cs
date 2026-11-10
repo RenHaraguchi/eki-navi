@@ -48,6 +48,8 @@ namespace EkiNavi.Route
         [Tooltip("ぶれの少ない1枚を選ぶために写すフレーム数")]
         [SerializeField] int burstFrames = 5;
         [SerializeField] float timeoutSeconds = 10f;
+        [Tooltip("案内板の一覧を読むときの待ち時間（秒）。止まっているサーバーの起動を待てる長さにする")]
+        [SerializeField] float stationTimeoutSeconds = 20f;
 
         [Header("位置の求め方（数値は仮）")]
         [Tooltip("壁の面を使うとき、枠から見積もった距離との差をどこまで許すか（割合）")]
@@ -110,6 +112,8 @@ namespace EkiNavi.Route
         /// <summary>看板で経路を合わせたときに呼ばれる。</summary>
         public event Action<SignEntry> Aligned;
 
+        bool signsLoaded;
+
         void Awake()
         {
             // 歩いている間は画面に触らないので、端末の自動消灯で画面が消えると、カメラと追跡が止まって
@@ -120,6 +124,38 @@ namespace EkiNavi.Route
             if (arCamera == null) arCamera = Camera.main;
             if (cameraBackground == null && arCamera != null) cameraBackground = arCamera.GetComponent<ARCameraBackground>();
             if (planeManager == null) planeManager = FindFirstObjectByType<ARPlaneManager>();
+        }
+
+        void Start()
+        {
+            if (!string.IsNullOrWhiteSpace(serverUrl)) StartCoroutine(LoadSigns());
+        }
+
+        /// <summary>
+        /// 案内板の一覧をサーバー（GET /v1/station）から読む。案内板のデータはサーバーにだけ置くので、
+        /// 同梱の signs.json は取れないときの予備。起動時に読むと、止まっていたサーバーの起動も先に済む。
+        /// </summary>
+        IEnumerator LoadSigns()
+        {
+            using var request = UnityWebRequest.Get(serverUrl.TrimEnd('/') + "/v1/station");
+            request.timeout = Mathf.CeilToInt(stationTimeoutSeconds);
+            yield return request.SendWebRequest();
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning($"[EkiNavi] 案内板の一覧をサーバーから読めません。同梱の一覧を使います: {request.responseCode} {request.error}");
+                yield break;
+            }
+            try
+            {
+                var catalog = SignCatalog.Parse(request.downloadHandler.text);
+                aligner.ReplaceCatalog(catalog);
+                signsLoaded = true;
+                Debug.Log($"[EkiNavi] 案内板の一覧をサーバーから読みました: {catalog.Signs.Count} 枚");
+            }
+            catch (FormatException e)
+            {
+                Debug.LogWarning($"[EkiNavi] サーバーの案内板の一覧を読めません。同梱の一覧を使います: {e.Message}");
+            }
         }
 
         void OnDestroy()
@@ -161,6 +197,8 @@ namespace EkiNavi.Route
                 CaptureView view = default;
                 yield return CaptureSharpest(v => view = v);
 
+                // 起動時に読めなかったら（圏外だったなど）、ここでもう一度試す
+                if (!signsLoaded) yield return LoadSigns();
                 var candidates = CandidateIds();
                 if (candidates.Length == 0)
                 {
