@@ -38,7 +38,8 @@ namespace EkiNavi.Route
         [SerializeField] float lookahead = 4f;
         // 3m だと、看板の位置や経路の線の数 m のずれだけで「外れた」と出たので 6m にした（2026-11-09 の現地の試験）
         [SerializeField] float offRouteDistance = 6f;
-        [SerializeField] float arrivalRadius = 5f;
+        // 5m だと改札のすぐ前まで行かないと到着にならなかったので、3m 手前で着くよう 8m にした（2026-11-10 の現地の試験）
+        [SerializeField] float arrivalRadius = 8f;
         [Tooltip("着いたとみなす、経路からの横の距離の上限（m）。外れの判定とは別に、狭くしておく")]
         [SerializeField] float arrivalLateral = 4.5f;
         [SerializeField] float turnAngleThreshold = 30f;
