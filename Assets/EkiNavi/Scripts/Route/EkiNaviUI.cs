@@ -898,6 +898,26 @@ namespace EkiNavi.Route
             refreshers.Add(() => right.text = value());
         }
 
+        /// <summary>
+        /// 文字の実際の形の上下の中心を、枠の中心に合わせる。
+        /// フォントの行の高さで中央に置くと、文字によって少し下にずれて見えるため。
+        /// </summary>
+        static void CenterGlyphs(Text label)
+        {
+            if (string.IsNullOrEmpty(label.text)) return;
+            var generator = new TextGenerator();
+            generator.Populate(label.text, label.GetGenerationSettings(new Vector2(4000f, 400f)));
+            var verts = generator.verts;
+            if (verts.Count == 0) return;
+            float min = float.MaxValue, max = float.MinValue;
+            foreach (var v in verts)
+            {
+                min = Mathf.Min(min, v.position.y);
+                max = Mathf.Max(max, v.position.y);
+            }
+            label.rectTransform.anchoredPosition = new Vector2(0f, -(min + max) * 0.5f / label.pixelsPerUnit);
+        }
+
         /// <summary>路線の記号を丸で囲んだものと、路線の色で囲んだ路線名を横に並べる。</summary>
         GameObject LineBadge(Transform parent, Func<int> index, int fontSize, float height)
         {
@@ -939,6 +959,8 @@ namespace EkiNavi.Route
                 pillImage.color = lineColor;
                 name.text = language == "ja" ? line.ja : line.en;
                 pillSize.preferredWidth = name.preferredWidth + 44f;
+                CenterGlyphs(code);
+                CenterGlyphs(name);
             });
             return row;
         }
